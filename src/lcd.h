@@ -10,21 +10,21 @@ namespace cnmlcd {
 
 class LCD {
   public:
-  bool valid = false;      // indicates whether current lcd object is valid
-  mpf alpha;               // initial slope on [x_1, x_2]
-  mpf C;                   // normalizing constant
-  mpf ll;                  // log likelihood of this lcd object
-  mpf lower;               // lower boundary (= x_1)
-  mpf upper;               // upper boundary (= x_n)
-  VectorT<mpf> theta;      // interior knots (knots other than x_1 and x_n)
-  VectorT<mpf> knots;      // lower + theta // = VectorT<T>(2);
-  VectorT<mpf> pi;         // changes of slope at theta
-  VectorT<mpf> intercept;  // intercepts over all segments
-  VectorT<mpf> slope;      // slopes over all segments
-  VectorT<mpf> fk;         // density at knots [lower, theta]
-  MatrixT<mpf> dpk;        // Int x^o f(x) dx over each segment between knots 
-                           // for o = 0, 1, 2
-  MatrixT<mpf> cpk;        // cumulative sum of dpk for all segments
+  bool valid = false;       // indicates whether current lcd object is valid
+  mpf alpha;                // initial slope on [x_1, x_2]
+  mpf C;                    // normalizing constant
+  mpf ll;                   // log likelihood of this lcd object
+  mpf lower;                // lower boundary (= x_1)
+  mpf upper;                // upper boundary (= x_n)
+  VectorT<mpf> theta;       // interior knots (knots other than x_1 and x_n)
+  VectorT<mpf> knots;       // lower + theta // = VectorT<T>(2);
+  VectorT<mpf> pi;          // changes of slope at theta
+  VectorT<mpf> intercept;   // intercepts over all segments
+  VectorT<mpf> slope;       // slopes over all segments
+  VectorT<mpf> fk;          // density at knots [lower, theta]
+  MatrixT<mpf> dpk;         // Int x^o f(x) dx over each segment between knots 
+                            // for o = 0, 1, 2
+  MatrixT<mpf> cpk;         // cumulative sum of dpk for all segments
 
   LCD() = default;
 
@@ -63,12 +63,11 @@ class LCD {
     intercept = cumsum(theta * pi, true).array() - (alpha * lower); // intercepts
     slope = cumsum(pi, true, true).array() + a;                     // slopes
 
-    VectorT<mpf> knots1 = prepend(theta, lower);
     VectorT<mpf> knots2 = append(theta, upper);
 
-    VectorT<mpf> dk = knots2 - knots1;
+    VectorT<mpf> dk = knots2 - knots;
     int nk = dk.cols();
-    VectorT<mpf> fk1 = ((knots1 * slope) + intercept).array().exp();
+    VectorT<mpf> fk1 = ((knots * slope) + intercept).array().exp();
     VectorT<mpf> fk2 = append(dropElementByIndex(fk1, 0), 
      std::exp(*(intercept.data() + nk - 1) + *(slope.data() + nk - 1) * upper));
 
@@ -76,16 +75,16 @@ class LCD {
     for (size_t i = 0, cols = slope.cols(); i < cols; ++i) {
       if (*(slope.data() + i) == 0) {     // horizontal segments
         dpk(0, i) = fk1(i) * dk(i);
-        dpk(1, i) = dpk(0, i) * (knots2(i) + knots1(i)) * 0.5;
+        dpk(1, i) = dpk(0, i) * (knots2(i) + knots(i)) * 0.5;
         dpk(2, i) = dpk(0, i) * 
-           (pow(knots2(i), 2) + knots2(i) * knots1(i) + pow(knots1(i), 2)) / 3;
+           (pow(knots2(i), 2) + knots2(i) * knots(i) + pow(knots(i), 2)) / 3;
       } else {                            // nonhorizontal segments
         mpf x1 = fk1(i) / slope(i);
         mpf y1 = fk2(i) / slope(i);
         dpk(0, i) = y1 - x1;
-        dpk(1, i) = knots2(i) * y1 - knots1(i) * x1 - dpk(0, i) / slope(i);
+        dpk(1, i) = knots2(i) * y1 - knots(i) * x1 - dpk(0, i) / slope(i);
         dpk(2, i) = pow(knots2(i), 2) * y1
-                  - pow(knots1(i), 2) * x1 - 2 * dpk(1, i) / slope(i);
+                  - pow(knots(i), 2) * x1 - 2 * dpk(1, i) / slope(i);
       }
     }
 
