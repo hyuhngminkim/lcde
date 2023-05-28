@@ -18,10 +18,14 @@
 
 namespace cnmlcd {
 
-class Builder {
+class Estimator {
   private:
   LCD lcd_;
   std::string canvasPath_;
+  int max_iter_ = 100;
+  mpf tol_ = 1e-6;
+  std::vector<mpf> data_;
+  size_t size_;
 
   void print_iteration(int i) {
     if (i < 0) {
@@ -92,26 +96,25 @@ class Builder {
   }
 
   public:
-  Builder(const Builder&) = delete;
-  Builder() = default;
-  Builder(std::string s) : canvasPath_(s) {}
-
-  // If no format is specified, save the resulting image as png
-  void setCanvasPath(std::string path) {
-    canvasPath_ = path + ".png";
+  Estimator(const Estimator&) = delete;
+  Estimator() = default;
+  Estimator(std::string s) : canvasPath_(s) {}
+  Estimator(std::vector<mpf> v) {
+    ingest(v);
   }
 
-  void setCanvasPath(std::string path, std::string format) {
-    canvasPath_ = path + "." + format;
+  void ingest(std::vector<mpf>& x_in) {
+    data_ = x_in;
+    size_ = data_.size();
   }
 
-  void solve(std::vector<mpf>& x_in, int max_iter = 100, mpf tol = 1e-6) {
-    VectorT<mpf> x(x_in.size());
-    VectorT<int> w(x_in.size());
+  void build() {
+    VectorT<mpf> x(data_.size());
+    VectorT<int> w(data_.size());
 
-    weight(x_in, x, w);
+    weight(data_, x, w);
     double lambda = 1e-15;
-    int n = x_in.size();
+    int n = data_.size();
     int nx = x.cols();
 
     if (nx <= 2) {
@@ -136,8 +139,8 @@ class Builder {
     mpf ll_old = std::numeric_limits<mpf>::lowest();
 
     // main loop
-    for (int i = 0; i < max_iter; ++i) {
-      if (lcd_.ll <= ll_old + tol) {
+    for (int i = 0; i < max_iter_; ++i) {
+      if (lcd_.ll <= ll_old + tol_) {
         break;
       }
       ll_old = lcd_.ll;
@@ -216,6 +219,14 @@ class Builder {
     return;
   }
 
+  mpf find(mpf key) {
+    auto it = std::upper_bound(lcd_.knots.data(), lcd_.knots.data() + lcd_.knots.cols(), key);
+    int idx = std::distance(lcd_.knots.data(), it) - 1;
+    return (idx > 0 ? lcd_.cpk(0,idx - 1) : 0) 
+          + ((std::exp(lcd_.slope[idx] * key + lcd_.intercept[idx]) / lcd_.C) 
+          - lcd_.fk[idx]) / lcd_.slope[idx];
+  }
+
   void printLCD() const {
     lcd_.print_lcd();
     return;
@@ -224,6 +235,15 @@ class Builder {
   void printMemory() const {
     lcd_.calculate_memory();
     return;
+  }
+
+  // If no format is specified, save the resulting image as png
+  void setCanvasPath(std::string path) {
+    canvasPath_ = path + ".png";
+  }
+
+  void setCanvasPath(std::string path, std::string format) {
+    canvasPath_ = path + "." + format;
   }
 
   void plot(std::string prompt, bool save=false, int width=500, int height=300) {
@@ -325,7 +345,7 @@ class Builder {
     }
   }
 
-};        // class Builder
+};        // class Estimator
 
 }         // namespace cnmlcd
 
