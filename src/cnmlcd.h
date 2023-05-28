@@ -53,7 +53,7 @@ class Estimator {
   }
 
   sciplot::Vec get_range(mpf lhs, mpf rhs) {
-    double dlhs = cast<double>(lhs), drhs = cast<double>(rhs);
+    double dlhs = static_cast<double>(lhs), drhs = static_cast<double>(rhs);
     int interval = 2000;
 
     return sciplot::linspace(dlhs, drhs, interval);
@@ -256,6 +256,7 @@ class Estimator {
 
     VectorT<double> slope = lcd_.slope.cast<double>();
     VectorT<double> intercept = lcd_.intercept.cast<double>();
+    VectorT<double> fk = lcd_.fk.cast<double>();
     double C = static_cast<double>(lcd_.C);
 
     // density
@@ -293,25 +294,28 @@ class Estimator {
     }
     plot1.legend().hide();
 
-    // plot2 = cdf
-    // UNDER CONSTRUCTION...
-    // Plot2D plot2;
+    // cdf
+    Plot2D plot2;
 
-    // plot2.xlabel("Data");
-    // plot2.ylabel("Cumulative Distribution");
+    plot2.xlabel("Data");
+    plot2.ylabel("Cumulative Distribution");
 
-    // plot2.xrange(cast<double>(lcd_.lower), cast<double>(lcd_.upper));
+    plot2.xrange(cast<double>(lcd_.lower), cast<double>(lcd_.upper));
 
-    // plot2.drawCurve(ranges[0], (exp(slope[0] * ranges[0] + intercept[0])) / (slope[0] * C))
-    //      .lineColor("red");
-    // for (size_t i = 1; i < ranges.size(); ++i) {
-    //   plot2.drawCurve(ranges[i],  (exp(slope[i] * ranges[i] + intercept[i])) / (slope[i] * C))
-    //        .lineColor("red");
-    //   plot2.drawPoints(intervals[i], (exp(slope[i] * intervals[i] + intercept[i])) / (slope[i] * C))
-    //        .lineColor("red")
-    //        .pointType(7);
-    // }
-    // plot2.legend().hide();
+    plot2.drawCurve(ranges[0], (exp(slope[0] * ranges[0] + intercept[0])) / (slope[0] * C))
+         .lineColor("red");
+    for (size_t i = 1; i < ranges.size(); ++i) {
+      plot2.drawCurve(ranges[i], 
+        (i > 0 ? lcd_.cpk(0, i - 1) : 0)
+        + ((std::exp(slope[i] * ranges[i] + intercept[i]) / C) - fk[i]) / slope[i]
+      ).lineColor("red");
+      plot2.drawPoints(intervals[i], 
+        (i > 0 ? lcd_.cpk(0, i - 1) : 0)
+        + ((std::exp(slope[i] * intervals[i] + intercept[i]) / C) - fk[i]) / slope[i]
+      ).lineColor("red")
+       .pointType(7);
+    }
+    plot2.legend().hide();
 
     if (prompt == "pdf" || prompt == "density") {
       Figure fig = {{plot0}};
@@ -327,16 +331,16 @@ class Estimator {
       canvas.show();
       if (save) save_canvas(canvas);
     } 
-    // else if (prompt == "cdf") {
-    //   Figure fig = {{plot2}};
-    //   Canvas canvas = {{fig}};
-    //   canvas.size(width, height);
-    //   canvas.show();
-    // } 
-    else if (prompt == "all") {
-      Figure fig = {{plot0, plot1}};
+    else if (prompt == "cdf") {
+      Figure fig = {{plot2}};
       Canvas canvas = {{fig}};
-      canvas.size(width * 2, height);
+      canvas.size(width, height);
+      canvas.show();
+    } 
+    else if (prompt == "all") {
+      Figure fig = {{plot0, plot1, plot2}};
+      Canvas canvas = {{fig}};
+      canvas.size(width * 3, height);
       canvas.show();
       if (save) save_canvas(canvas);
     } else {
