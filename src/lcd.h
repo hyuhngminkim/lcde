@@ -144,7 +144,7 @@ class LCD {
     // std::cout << "\n\033[1;31malpha\033[0m\n" << alpha << std::endl;
     // std::cout << "\033[1;31mlog likelihood\033[0m\n" << ll << std::endl;
     // std::cout << "\033[1;31mpi\033[0m\n" << pi << std::endl;
-    // std::cout << "\033[1;31mdpk\033[0m\n" << dpk << std::endl;
+    // std::cout << "\n\033[1;31mdpk\033[0m\n" << dpk << std::endl;
     // std::cout << "\033[1;31mcpk\033[0m\n" << cpk << std::endl;
     // std::cout << "\033[1;31mfk\033[0m\n" << fk << std::endl;
     std::cout << "\n\033[1;91;47m                                                  \033[m\n\n";
