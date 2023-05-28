@@ -2,7 +2,7 @@
 #define RDATA_H_
 
 #include <vector>
-#include "../vector.h"
+#include "../src/vector.h"
 
 using namespace std;
 
