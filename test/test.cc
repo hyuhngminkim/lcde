@@ -17,7 +17,7 @@ template <class T>
 void printTime(T time) {
   cout << endl;
   cout << "\033[1;36;47m                \033[m";
-  cout << "\033[1;36;47m 😂 Elapsed time(ns): " << static_cast<double>(time) / 1e+9 << "s 😂 \033[m";
+  cout << "\033[1;36;47m 😂 Elapsed time(ns): " << static_cast<double>(time) << "ns 😂 \033[m";
   cout << "\033[1;36;47m                \033[m\n";
   cout << endl;
   return;
@@ -113,7 +113,7 @@ int main() {
     }
     cout << "Sampling data...";
     int ratio = samplingRates[samplingRate - 1];
-    for (int i = 0, size = data.size(); i < size / ratio - 1; ++i) {
+    for (int i = 0, size = data.size(); i <= size / ratio - 1; ++i) {
       data[i] = data[i * ratio];
     }
     data.resize(data.size() / ratio);
@@ -122,7 +122,10 @@ int main() {
     dataset += ("_sr_" + to_string(ratio));
   }
   
-  cnmlcd::Builder c;
+  
+  cnmlcd::Estimator c(dataset);
+  c.ingest(data);
+  c.build();
 
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
@@ -131,9 +134,6 @@ int main() {
   ///////////////////////////////////////////////////////////////////////
   ///////////////////// code for testing goes here. /////////////////////
   ///////////////////////////////////////////////////////////////////////
-
-
-  c.solve(data);
 
 
   ///////////////////////////////////////////////////////////////////////
@@ -150,10 +150,28 @@ int main() {
 
   c.printLCD();
 
-  c.printMemory();
+
+  int total_error = 0;
+  int max_error = -1;
+  int min_error = 100000;
+
+  for (int i = 1; i < data.size(); i += 100) {
+    cnmlcd::mpf tmpidx = c.find(data[i]);
+    int foundidx = static_cast<int>(tmpidx * data.size());
+    int error = (foundidx - i);
+    error = abs(error);
+    if (error > max_error) max_error = error;
+    if (error < min_error) min_error = error;
+    total_error += error;
+  }
+
+  cout << endl << "Total error : " << total_error << "   Max error : " << max_error << "   Min error : " << min_error << endl;
+
+  // c.printMemory();
+  // c.printLCD();
 
   c.setCanvasPath(dataset, "pdf");
-  c.plot("all", true);
+  c.plot("all", false);
 
   return 0;
 }
