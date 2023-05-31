@@ -3,12 +3,8 @@ project(lcde LANGUAGES CXX Fortran)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# include_directories(
-#   ${CMAKE_SOURCE_DIR}
-# )
-
-add_library(pnnls OBJECT "src/pnnls.f")
-file(GLOB INCLUDE_H "src/*.h")
+add_library(pnnls OBJECT "include/lcde/pnnls.f")
+file(GLOB INCLUDE_H "include/lcde/*.h")
 set(TEST_FILES test.cc)
 
 add_executable(test ${INCLUDE_H} ${TEST_FILES})
