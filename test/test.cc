@@ -78,6 +78,7 @@ int main() {
 
   cout << "Allocating memory for data...";
   vector<cnmlcd::mpf> data(original_data.size());
+  vector<cnmlcd::mpf> sampled_data;
   cout << "Done!\n";
 
 
@@ -114,18 +115,15 @@ int main() {
     cout << "Sampling data...";
     int ratio = samplingRates[samplingRate - 1];
     for (int i = 0, size = data.size(); i <= size / ratio - 1; ++i) {
-      data[i] = data[i * ratio];
+      sampled_data.push_back(data[i * ratio]);
     }
-    data.resize(data.size() / ratio);
     cout << "Done!\n";
 
     dataset += ("_sr_" + to_string(ratio));
   }
   
-  
-  cnmlcd::Estimator c(dataset);
-  c.ingest(data);
-  c.build();
+  cnmlcd::Estimator c;
+  c.ingest(sampled_data);
 
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
@@ -136,6 +134,12 @@ int main() {
   ///////////////////////////////////////////////////////////////////////
 
 
+  // for (size_t i = 1; i < data.size(); i+= 1000) {
+  //   c.find(data[i]);
+  // }
+
+  c.build();
+
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
@@ -144,34 +148,35 @@ int main() {
   ///////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////
 
-
   chrono::nanoseconds elapsedNS = end - start;
-  printTime(elapsedNS.count());
+  printTime(elapsedNS.count() / 200000);
 
-  c.printLCD();
+  // uint64_t total_error = 0;
+  // uint64_t max_error = 0;
+  // uint64_t min_error = 100000;
 
+  // for (size_t i = 1; i < data.size(); i += 1000) {
+  //   cnmlcd::mpf tmpidx = c.find(data[i]);
+  //   int foundidx = static_cast<int>(tmpidx * data.size());
+  //   int error = (foundidx - i);
+  //   uint64_t uerror = abs(error);
+  //   if (uerror > max_error) {
+  //     max_error = uerror;
+  //     // cout << "Max error updated : " << tmpidx << " //// " << foundidx << " to " << i << endl;
+  //   }
+  //   if (uerror < min_error) min_error = uerror;
+  //   total_error += uerror;
+  // }
 
-  int total_error = 0;
-  int max_error = -1;
-  int min_error = 100000;
-
-  for (int i = 1; i < data.size(); i += 100) {
-    cnmlcd::mpf tmpidx = c.find(data[i]);
-    int foundidx = static_cast<int>(tmpidx * data.size());
-    int error = (foundidx - i);
-    error = abs(error);
-    if (error > max_error) max_error = error;
-    if (error < min_error) min_error = error;
-    total_error += error;
-  }
-
-  cout << endl << "Total error : " << total_error << "   Max error : " << max_error << "   Min error : " << min_error << endl;
+  // cout << endl << "Total error : " << total_error << "   Max error : " << max_error << "   Min error : " << min_error << endl;
 
   // c.printMemory();
-  // c.printLCD();
+  c.printLCD();
 
-  c.setCanvasPath(dataset, "pdf");
-  c.plot("all", false);
+  dataset.replace(dataset.find("data/"), 5, "plot/");
+
+  c.setCanvasPath(dataset);
+  c.plot("all", true);
 
   return 0;
 }
