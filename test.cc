@@ -6,7 +6,7 @@
 #include <string>
 #include <fstream>
 
-#include "src/cnmlcd.h"
+#include "include/lcde/builder.h"
 
 #include "test/header.h"
 #include "test/rdata.h"
@@ -122,7 +122,7 @@ int main() {
     dataset += ("_sr_" + to_string(ratio));
   }
   
-  cnmlcd::Estimator c;
+  lcde::Builder c;
   c.ingest(sampled_data);
 
   ///////////////////////////////////////////////////////////////////////
