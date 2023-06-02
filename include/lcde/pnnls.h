@@ -1,5 +1,5 @@
-#ifndef CNMLCD_PNNLS_H_
-#define CNMLCD_PNNLS_H_
+#ifndef LCDE_PNNLS_H_
+#define LCDE_PNNLS_H_
 
 #include <iostream>
 #include <cassert>
@@ -7,7 +7,7 @@
 #include "vector.h"
 #include "utils.h"
 
-namespace cnmlcd {
+namespace lcde {
 
 extern "C" {
   void pnnls_(double** fa_, int* fmda_, int* fm_, int* fn_, double* fb_, 
@@ -47,6 +47,6 @@ VectorT<double> pnnls(DynamicMatrixT<double> a, VectorT<double> b, int k) {
   return res;
 }
 
-}           // namespace cnmlcd
+}           // namespace lcde
 
-#endif      // CNMLCD_PNNLS_H_
+#endif      // LCDE_PNNLS_H_

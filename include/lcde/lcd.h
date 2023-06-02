@@ -1,16 +1,15 @@
-#ifndef CNMLCD_LCD_H_
-#define CNMLCD_LCD_H_
+#ifndef LCDE_LCD_H_
+#define LCDE_LCD_H_
 
 #include <vector>
 #include <math.h>
 
 #include "utils.h"
 
-namespace cnmlcd {
+namespace lcde {
 
 class LCD {
   public:
-  bool valid = false;       // indicates whether current lcd object is valid
   mpf alpha;                // initial slope on [x_1, x_2]
   mpf C;                    // normalizing constant
   mpf ll;                   // log likelihood of this lcd object
@@ -30,7 +29,6 @@ class LCD {
 
   LCD& operator=(const LCD& rhs) {
     if (this != &rhs) {
-      valid = true;
       alpha = rhs.alpha;
       C = rhs.C;
       ll = rhs.ll;
@@ -98,7 +96,10 @@ class LCD {
       cpk(1, i) += cpk(1, i - 1);
       cpk(2, i) += cpk(2, i - 1);
     }
-    valid = true;
+  }
+
+  LCD(bool dummy) {
+
   }
 
   void simplify() {
@@ -173,6 +174,6 @@ class LCD {
   }
 };        // class LCD
 
-}         // namespace cnmlcd
+}         // namespace lcde
 
-#endif    // CNMLCD_LCD_H_
+#endif    // LCDE_LCD_H_

@@ -1,5 +1,5 @@
-#ifndef CNMLCD_VECTOR_H_
-#define CNMLCD_VECTOR_H_
+#ifndef LCDE_VECTOR_H_
+#define LCDE_VECTOR_H_
 
 #include <iostream>
 #include <cmath>
@@ -9,7 +9,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Core>
 
-namespace cnmlcd {
+namespace lcde {
 
 // using mpf = boost::multiprecision::mpf_float_50;
 using mpf = long double;
@@ -46,6 +46,6 @@ VectorT<T> operator*(const VectorT<T>& lhs, const VectorT<U>& rhs) {
   return r;
 }
 
-}   // namespace cnmlcd
+}   // namespace lcde
 
-#endif    // CNMLCD_VECTOR_H_
+#endif    // LCDE_VECTOR_H_

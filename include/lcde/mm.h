@@ -1,12 +1,12 @@
-#ifndef CNMLCD_MM_H_
-#define CNMLCD_MM_H_
+#ifndef LCDE_MM_H_
+#define LCDE_MM_H_
 
 #include <iostream>
 #include <cassert>
 
 #include "utils.h"
 
-namespace cnmlcd {
+namespace lcde {
 
 DynamicMatrixT<mpf> inline computeDiff(const VectorT<mpf>& knots, 
                               const MatrixT<mpf>& cpkr, int nk) {
@@ -38,6 +38,6 @@ void inline copyDiagonal(DynamicMatrixT<mpf>& d) {
   }
 }
 
-}         // namespace cnmlcd
+}         // namespace lcde
 
-#endif    // CNMLCD_MM_H_
+#endif    // LCDE_MM_H_

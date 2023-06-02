@@ -1,5 +1,5 @@
-#ifndef CNMLCD_GRADIENT_H_
-#define CNMLCD_GRADIENT_H_
+#ifndef LCDE_GRADIENT_H_
+#define LCDE_GRADIENT_H_
 
 #include <iostream>
 #include <vector>
@@ -7,7 +7,7 @@
 
 #include "lcd.h"
 
-namespace cnmlcd {
+namespace lcde {
 
 #define ISX     false
 #define ISKNOTS true
@@ -92,6 +92,6 @@ maxima_gradient(LCD& lcd, const VectorT<mpf>& x, const VectorT<int>& w,
   return theta;
 }
 
-}           // namespace cnmlcd
+}           // namespace lcde
 
-#endif      // CNMLCD_GRADIENT_H_
+#endif      // LCDE_GRADIENT_H_

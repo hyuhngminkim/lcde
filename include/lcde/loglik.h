@@ -1,5 +1,5 @@
-#ifndef CNMLCD_LOGLIK_H_
-#define CNMLCD_LOGLIK_H_
+#ifndef LCDE_LOGLIK_H_
+#define LCDE_LOGLIK_H_
 
 #include <algorithm>
 #include <numeric>
@@ -9,7 +9,7 @@
 #include "utils.h"
 
 
-namespace cnmlcd {
+namespace lcde {
   
 // x must be a sorted array
 VectorT<mpf> dlcd(LCD& lcd, VectorT<mpf>& x, bool islog = false) {
@@ -36,6 +36,6 @@ void loglik(LCD& lcd, VectorT<mpf> &x, const VectorT<int>& w) {
   return;
 }
 
-}         // namespace cnmlcd
+}         // namespace lcde
 
-#endif    // CNMLCD_LOGLIK_H_
+#endif    // LCDE_LOGLIK_H_

@@ -1,5 +1,5 @@
-#ifndef CNMLCD_UTILS_H_
-#define CNMLCD_UTILS_H_
+#ifndef LCDE_UTILS_H_
+#define LCDE_UTILS_H_
 
 #include <vector>
 #include <string>
@@ -19,7 +19,7 @@
 // This header file implements basic / utility functions
 // required in the code. 
 
-namespace cnmlcd {
+namespace lcde {
 
 // https://www.appsloveworld.com/cplus/100/92/c-cast-template
 // Usage :
@@ -492,7 +492,59 @@ void inline weight(const std::vector<T>& input, VectorT<T>& x,
     }
   }
 
-  // Must use conservativeResize() since upon size reduction, resize() removes
+  // Must use conservativeResize() since for size reduction, resize() removes
+  // all existing data whereas conservativeResize() retains data
+  x.conservativeResize(1, idx);
+  w.conservativeResize(1, idx);
+  return;
+}
+
+// Requires the vectors x and w to be allocated memory outside of this function
+template <typename T, typename U>
+void inline weight(const std::vector<T>& input, VectorT<U>& x, 
+                   VectorT<int>& w) {
+  const size_t input_size = input.size();
+
+  size_t idx = 0;
+  U max_val = std::numeric_limits<U>::lowest();
+  for (size_t i = 0; i < input_size; ++i) {
+    if (input[i].x > max_val) {
+      max_val = input[i].x;
+      *(x.data() + idx) = max_val;
+      *(w.data() + idx) = 1;
+      ++idx;
+    } else {
+      ++(*(w.data() + idx - 1));
+    }
+  }
+
+  // Must use conservativeResize() since for size reduction, resize() removes
+  // all existing data whereas conservativeResize() retains data
+  x.conservativeResize(1, idx);
+  w.conservativeResize(1, idx);
+  return;
+}
+
+// Requires the vectors x and w to be allocated memory outside of this function
+void inline weight(std::vector<mpf>::iterator begin, std::vector<mpf>::iterator end,
+                   VectorT<mpf>& x, VectorT<int>& w) {
+  const size_t input_size = std::distance(begin, end);//input.size();
+
+  size_t idx = 0;
+  mpf max_val = std::numeric_limits<mpf>::lowest();
+
+  for (auto i = begin; i < end; ++i) {
+    if (*i > max_val) {
+      max_val = *i;
+      *(x.data() + idx) = max_val;
+      *(w.data() + idx) = 1;
+      ++idx;
+    } else {
+      ++(*(w.data() + idx - 1));
+    }
+  }
+
+  // Must use conservativeResize() since for size reduction, resize() removes
   // all existing data whereas conservativeResize() retains data
   x.conservativeResize(1, idx);
   w.conservativeResize(1, idx);
@@ -641,6 +693,6 @@ double* cast(const VectorT<mpf>& v) {
   return res;
 }
 
-}         // namespace cnmlcd
+}         // namespace lcde
 
-#endif    // CNMLCD_UTILS_H_
+#endif    // LCDE_UTILS_H_

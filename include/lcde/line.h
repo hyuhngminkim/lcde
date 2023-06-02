@@ -1,5 +1,5 @@
-#ifndef CNMLCD_LINE_LCD_H_
-#define CNMLCD_LINE_LCD_H_
+#ifndef LCDE_LINE_LCD_H_
+#define LCDE_LINE_LCD_H_
 
 #include <iostream>
 #include <vector>
@@ -9,7 +9,7 @@
 #include "gradient.h"
 #include "loglik.h"
 
-namespace cnmlcd {
+namespace lcde {
 
 /*!
  * @name          line_lcd
@@ -61,6 +61,6 @@ void line_lcd(LCD& lcd, VectorT<mpf>& x, const VectorT<int>& w,
   }
 }
 
-}         // namespace cnmlcd
+}         // namespace lcde
 
-#endif    // CNMLCD_LINE_H_
+#endif    // LCDE_LINE_H_
