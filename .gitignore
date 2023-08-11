@@ -129,3 +129,5 @@ test/
 # Temporary files created during plotting
 *.plt
 *.dat
+# Ignore vscode
+.vscode/
