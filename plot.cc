@@ -22,7 +22,6 @@ std::vector<T> load_data(const std::string& filename) {
   // Read values.
   in.read(reinterpret_cast<char*>(data.data()), size * sizeof(T));
   in.close();
-  std::cout << "Finished loading " << filename << std::endl;
   return data;
 }
 
@@ -51,7 +50,6 @@ int main(int argc, char** argv) {
   const int fanout = result["fanout"].as<int>();
   
   TestUnit<mpf> tu;
-  if (save) {
   std::vector<double> params;
   params.push_back(sampling_rate);
   params.push_back(static_cast<double>(fanout));
@@ -60,7 +58,7 @@ int main(int argc, char** argv) {
   std::vector<mpf> data(uint_data.begin(), uint_data.end());
 
   tu.build(data, params);
-  tu.plot(save, dataset, extension);}
+  tu.plot(save, dataset, extension);
   
   return 0;
 }
