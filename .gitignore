@@ -119,5 +119,16 @@ build/
 .ionide
 
 ### Testing Data ###
-test/data
-test/plot
+/test/data
+/test/plot
+# Dataset directory
+/data
+# Plot save directory
+/plot
+/plots
+/overlap
+# Ignore old test files
+/test
+# Temporary files created during plotting
+*.plt
+*.dat
