@@ -235,10 +235,8 @@ VectorT<T> inline indx(const VectorT<U>& target, const VectorT<T>& x,
   assert(target.cols() == v.cols());
   int idx = 0, cols = x.cols();
   VectorT<U> r(cols);
-  auto head = v(0);
-  auto tail = v(v.cols() - 1);
   for (long int i = 0; i < cols; ++i) {
-    assert(*(x.data() + i) >= head && *(x.data() + i) <= tail);
+    assert(*(x.data() + i) >= v(0) && *(x.data() + i) <= v(v.cols() - 1));
     while (*(x.data() + i) >= *(v.data() + idx)) ++idx;
     *(r.data() + i) = *(target.data() + idx - 1);
   }
@@ -528,8 +526,6 @@ void inline weight(const std::vector<T>& input, VectorT<U>& x,
 // Requires the vectors x and w to be allocated memory outside of this function
 void inline weight(std::vector<mpf>::iterator begin, std::vector<mpf>::iterator end,
                    VectorT<mpf>& x, VectorT<int>& w) {
-  const size_t input_size = std::distance(begin, end);//input.size();
-
   size_t idx = 0;
   mpf max_val = std::numeric_limits<mpf>::lowest();
 

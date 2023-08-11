@@ -30,9 +30,9 @@ template <typename KeyType>
 class Builder {
   private:
   // The sampling ratio
-  static constexpr mpf sampling_rate = .01;
+  double sampling_rate;
   // Minimum number of elements for an estimation
-  static constexpr long min_size = 3;
+  unsigned long min_size = 3;
   // The number of second layer lcds
   long fanout;
   // Slope and intercept for the linear regression of the first layer
@@ -237,12 +237,16 @@ class Builder {
   Builder(const Builder&) = delete;
   Builder() = default;
 
-  void build(const std::vector<KeyType>& data, int lrange, int rrange) {
+  void build(const std::vector<KeyType>& data, int lrange, int rrange,
+             std::vector<double> params) {
     // Set parameters
     LRANGE = lrange;
     RRANGE = rrange;
     data_size_ = data.size();
-    fanout = 5;
+
+    sampling_rate = params[0];
+    // fanout = 2
+    fanout = static_cast<long>(params[1]);
 
     const long input_size = data.size();
     const long sample_size = std::min<long>(
@@ -257,9 +261,7 @@ class Builder {
                               static_cast<mpf>(1. * i / input_size)});
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Train first layer ///////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
+    // Train first layer 
     point min = sample_data.front();
     point max = sample_data.back();
 
@@ -277,9 +279,7 @@ class Builder {
       training_data[rank].push_back(d);
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Train each subdata //////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
+    // Train each subdata 
     rootMap.reserve(fanout);
     sizePerInterval.reserve(fanout);                                                  // Remove
     globalLayout.push_back(cdfPoint());
@@ -364,15 +364,6 @@ class Builder {
     auto RITER = std::min(std::next(it, RRANGE), globalLayout.end() - 1);
 
     return std::make_pair(LITER->cdf, RITER->cdf);
-  }
-
-  size_t getSize() const {
-    auto key_size = sizeof(KeyType);
-    auto cdf_size = sizeof(size_t);
-    auto int_size = sizeof(int);
-    auto gl_size = globalLayout.size() * (key_size + cdf_size);
-    auto rm_size = rootMap.size() * int_size;
-    return gl_size + rm_size;
   }
 
 };
