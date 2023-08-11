@@ -357,7 +357,6 @@ class TestUnit {
   // Build LCDE using the standard linear model - fanout structure. 
   // Parameters are brought in as a vector for scalability and testing purposes.
   void build(const std::vector<KeyType>& data, std::vector<double> params) {
-    std::cout << "Building LCDE...";
     // Set parameters
     sampling_rate = params[0];
     fanout = static_cast<long>(params[1]);
@@ -436,16 +435,13 @@ class TestUnit {
         }
       }
     }
-    std::cout << "Done!" << std::endl;
   }
 
   void plot(bool doSave = false, std::string dataset = "plot_result", 
             std::string extension = "pdf") {
-    std::cout << "Plotting...";
     testObject.finalize();
     std::string saveFileName = "./plot/" + dataset + "." + extension;
     testObject.plot(doSave, saveFileName);
-    std::cout << "Done!" << std::endl;
   }
 
 };
