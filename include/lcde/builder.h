@@ -6,8 +6,11 @@
 #include <string>
 #include <limits>
 #include <algorithm>
+#include <map>
+#include <utility>
+#include <iterator>
+#include <cmath>
 #include <Eigen/Eigenvalues>
-#include <sciplot/sciplot.hpp>
 
 #include "utils.h"
 #include "lcd.h"
@@ -21,32 +24,102 @@
 namespace lcde {
 
 template <typename KeyType>
+class Model;
+
+template <typename KeyType>
 class Builder {
   private:
-  mpf slope_;
-  mpf intercept_;
+  // The sampling ratio
+  static constexpr mpf sampling_rate = .01;
+  // Minimum number of elements for an estimation
+  static constexpr long min_size = 3;
+  // The number of second layer lcds
+  long fanout;
+  // Slope and intercept for the linear regression of the first layer
+  mpf slope;
+  mpf intercept;
 
-  static constexpr mpf sampling_rate_ = .01;
-  static constexpr long fanout_ = 10;
-  static constexpr long min_size_ = 3;
-  long input_size;
-  std::vector<CDF> estimates_;
+  mpf current_base = 0;
+  mpf current_ratio = 0;
+  size_t data_size_;
 
+  // Temporary search boundaries
+  int LRANGE, RRANGE;
+
+  // Parameters ll(log-likelihood) and C(cumulative density) are commented as
+  // "Remove" because these parameters can be removed when deemed unnecessary. 
+  struct cdfPoint {
+    KeyType knot;
+    size_t cdf;
+    mpf ll;                                                   // Remove
+    mpf C;                                                    // Remove
+
+    cdfPoint() {
+      knot = 0;
+      cdf = 0;
+      ll = 1;                                                 // Remove
+      C = 1;                                                  // Remove
+    }
+
+    cdfPoint(const Builder* b, mpf k, mpf c, mpf l, mpf normc)
+    : knot(static_cast<KeyType>(k)),
+      cdf(static_cast<size_t>(c * b->data_size_)),
+      ll(l), C(normc) {}                                      // Remove
+    
+    cdfPoint(const cdfPoint& c) {
+      knot = c.knot;
+      cdf = c.cdf;
+      ll = c.ll;                                              // Remove
+      C = c.C;                                                // Remove
+    }
+  };
+
+  // Auxiliary data structure for storing sampled data and its sample density
   struct point {
     mpf x;
     mpf y;
   };
 
-  std::vector<point> sample_data_;
+  // For storing sampled data and their sample density
+  std::vector<point> sample_data;
 
-  public:
-  Builder(const Builder&) = delete;
-  Builder() = default;
+  // Map first layer to the vector on next layer
+  std::vector<int> rootMap; 
+  std::vector<int> sizePerInterval;
 
-  // CDF solve(std::vector<mpf>::iterator begin, std::vector<mpf>::iterator end) {
-  CDF solve(const std::vector<point>& data) {
-    int max_iter_ = 100;
-    mpf tol_ = 1e-6;
+  // Second layer vector that stores all necessary data
+  std::vector<cdfPoint> globalLayout;
+
+  void LCDtoVector(const LCD& lcd) {
+    auto cpk = (lcd.cpk.row(0) * current_ratio).array() + current_base;
+
+    // If the resulting LCD has a single knot
+    if (lcd.knots.cols() == 1) {
+      globalLayout.push_back(cdfPoint(
+        this,
+        lcd.knots(0),
+        current_ratio + current_base,
+        lcd.ll,                                                  // Remove
+        lcd.C                                                    // Remove
+      ));
+      return;
+    }
+
+    // If the resulting LCD has > 1 knots
+    for (long i = 0; i < lcd.knots.cols(); ++i) {
+      globalLayout.push_back(cdfPoint(
+        this, 
+        lcd.knots(i),
+        cpk(i),
+        lcd.ll,                                                  // Remove
+        lcd.C                                                    // Remove
+      ));
+    }
+  }
+
+  void solve(const std::vector<point>& data) {
+    int max_iter = 100;
+    mpf tol = 1e-6;      // experimental changes
     auto data_size = data.size();
     VectorT<mpf> x(data_size);
     VectorT<int> w(data_size);
@@ -58,8 +131,7 @@ class Builder {
 
     if (nx <= 2) {
       std::cerr << "Not enough elements. Aborting...\n";
-      LCD l;
-      return l;
+      return;
     }
 
     mpf lower = x(0);
@@ -77,8 +149,8 @@ class Builder {
     mpf ll_old = std::numeric_limits<mpf>::lowest();
 
     // main loop
-    for (int i = 0; i < max_iter_; ++i) {
-      if (lcd_.ll <= ll_old + tol_) {
+    for (int i = 0; i < max_iter; ++i) {
+      if (lcd_.ll <= ll_old + tol) {
         break;
       }
       ll_old = lcd_.ll;
@@ -154,58 +226,69 @@ class Builder {
       if ((lcd_.pi.array() == 0).any()) lcd_.simplify();
     }
 
-    return CDF(lcd_);
+    LCDtoVector(lcd_);
+    
+    return;
   }
 
-  void build(const std::vector<KeyType>& data) {
-    estimates_.reserve(fanout_);
+  friend class Model<KeyType>;
 
-    // Sample Data
-    auto begin = data.begin();
-    auto end = data.end();
+  public:
+  Builder(const Builder&) = delete;
+  Builder() = default;
 
-    input_size = data.size();
+  void build(const std::vector<KeyType>& data, int lrange, int rrange) {
+    // Set parameters
+    LRANGE = lrange;
+    RRANGE = rrange;
+    data_size_ = data.size();
+    fanout = 5;
+
+    const long input_size = data.size();
     const long sample_size = std::min<long>(
-      input_size, std::max<long>(sampling_rate_ * input_size, min_size_)
+      input_size, std::max<long>(sampling_rate * input_size, min_size)
     );
 
-    std::cout << "sample size : " << sample_size << std::endl;
-
-    sample_data_.reserve(sample_size);
+    sample_data.reserve(sample_size);
 
     long offset = static_cast<long>(1. * input_size / sample_size);
     for (long i = 0; i < input_size; i += offset) {
-      sample_data_.push_back({static_cast<mpf>(data[i]), 
+      sample_data.push_back({static_cast<mpf>(data[i]), 
                               static_cast<mpf>(1. * i / input_size)});
     }
 
-    // Train first layer
-    point min = sample_data_.front();
-    point max = sample_data_.back();
+    ////////////////////////////////////////////////////////////////////////////
+    // Train first layer ///////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+    point min = sample_data.front();
+    point max = sample_data.back();
 
-    slope_ = 1. / (max.x - min.x);
-    intercept_ = -slope_ * min.x;
+    slope = 1. / (max.x - min.x);
+    intercept = -slope * min.x;
 
-    slope_ *= fanout_ - 1;
-    intercept_ *= fanout_ - 1;
+    slope *= fanout - 1;
+    intercept *= fanout - 1;
 
     // Allocate memory for second layer
-    std::vector<std::vector<point>> training_data(fanout_);
-    for (const auto& d : sample_data_) {
-      long rank = static_cast<long>( slope_ * d.x + intercept_);
-
-      rank = std::max(0L, std::min(fanout_ - 1, rank));
-
+    std::vector<std::vector<point>> training_data(fanout);
+    for (const auto& d : sample_data) {
+      long rank = static_cast<long>( slope * d.x + intercept);
+      rank = std::max(0L, std::min(fanout - 1, rank));
       training_data[rank].push_back(d);
     }
 
-    for (long model_idx = 0; model_idx < fanout_; ++model_idx) {
+    ////////////////////////////////////////////////////////////////////////////
+    // Train each subdata //////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+    rootMap.reserve(fanout);
+    sizePerInterval.reserve(fanout);                                                  // Remove
+    globalLayout.push_back(cdfPoint());
+
+    for (long model_idx = 0; model_idx < fanout; ++model_idx) {
       std::vector<point>& current_training_data = training_data[model_idx];
-
-      if (model_idx == 0) {
-        if (current_training_data.size() < 2) {
-          estimates_.push_back(CDF(0.));
-
+      if (model_idx == 0) {                       // First model
+        rootMap.push_back(0);
+        if (current_training_data.size() < min_size) {
           point tp;
           tp.x = 0;
           tp.y = 0;
@@ -214,119 +297,83 @@ class Builder {
           min = current_training_data.front();
           max = current_training_data.back();
 
-          CDF c = solve(current_training_data);
-          c.normalize(0, max.y);
-
-          estimates_.push_back(c);
+          current_ratio = max.y;
+          solve(current_training_data);
+          current_base += current_ratio;
+          // Maybe remove
+          // Copy ll and C of next point
+          globalLayout[0].ll = globalLayout[1].ll;
+          globalLayout[0].C = globalLayout[1].C;
         }
-      } else if (model_idx == fanout_ - 1) {
-        if (current_training_data.size() <= 2) {
-          estimates_.push_back(CDF(1.));
+        sizePerInterval.push_back(current_training_data.size());                                                  // Remove
+      } else if (model_idx == fanout - 1) {      // Last model
+        if (current_training_data.size() < min_size) {
+          rootMap.push_back(rootMap[rootMap.size() - 1]);
+          sizePerInterval.push_back(sizePerInterval[sizePerInterval.size() - 1]);            // Remove
         } else {
+          rootMap.push_back(globalLayout.size());
           min = training_data[model_idx - 1].back();
-          max = current_training_data.back();
 
-          CDF c = solve(current_training_data);
-          c.normalize(estimates_[model_idx - 1].cap_, 1. - min.y);
-
-          estimates_.push_back(c);
+          current_ratio = 1 - min.y;
+          solve(current_training_data);
+          sizePerInterval.push_back(current_training_data.size());                    // Remove
         }
-      } else {
-        if (current_training_data.size() <= 2) {
-          estimates_.push_back(CDF(estimates_[model_idx - 1].cap_));
+        globalLayout.push_back(cdfPoint(
+          this, 
+          std::numeric_limits<KeyType>::max(),
+          1.,    // dummy max cdf
+          1.,                                                  // Remove
+          1.
+        ));
+      } else {                                    // Intermediate models
+        if (current_training_data.size() < min_size) {
+          rootMap.push_back(rootMap[rootMap.size() - 1]);
 
           point tp;
           tp.x = training_data[model_idx - 1].back().x;
           tp.y = training_data[model_idx - 1].back().y;
           current_training_data.push_back(tp);
+          sizePerInterval.push_back(sizePerInterval[sizePerInterval.size() - 1]);            // Remove
         } else {
+          rootMap.push_back(globalLayout.size());
           min = training_data[model_idx - 1].back();
           max = current_training_data.back();
 
-          CDF c = solve(current_training_data);
-          c.normalize(estimates_[model_idx - 1].cap_, max.y - min.y);
-
-          estimates_.push_back(c);
+          current_ratio = max.y - min.y;
+          solve(current_training_data);
+          current_base += current_ratio;
+          sizePerInterval.push_back(current_training_data.size());                    // Remove
         }
+        
       }
     }
   }
 
-  bool find(KeyType key, int ground_truth) {
-    long rank = slope_ * key + intercept_;
-    rank = std::max(0L, std::min(static_cast<long>(fanout_ - 1), rank));
-
-    // std::cout << "!!!" << key << " : " << rank << std::endl;
-
-    CDF& c = estimates_[rank];
-    long lhs, rhs;
-
-    // std::cout << c.knots << std::endl;
-    // std::cout << c.cpk << std::endl;
-    // return true;
-
-    if (c.cpk.cols() == 1) {
-      lhs = c.base_ * 200000000;
-      rhs = c.cap_ * 200000000;
-      if (lhs <= ground_truth && ground_truth <= rhs) return true;
-      else return false;
-    } else {
-      auto it = std::upper_bound(c.knots.data(), c.knots.data() + c.knots.cols(), key);
-      int idx = std::distance(c.knots.data(), it);
-
-      lhs = idx > 3 ? c.cpk[idx - 4] * 200000000 : c.base_ * 200000000;
-      rhs = idx <= c.cpk.cols() - 5 ? c.cpk[idx + 4] * 200000000 : c.cap_ * 200000000;
-      if (lhs <= ground_truth && ground_truth <= rhs) return true;
-      else {
-        std::cout << key << std::endl;
-        std::cout << c.knots << std::endl;
-        std::cout << c.cpk << std::endl;
-        std::cout << estimates_[rank + 1].cpk << std::endl;
-        std::cout << estimates_[rank + 1].knots << std::endl;
-        return false;
-      }
-    }
+  std::pair<size_t, size_t> find(const KeyType& key) const {
+    long rank = slope * key + intercept;
+    rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
+    long nrank = std::min(rank + 1, static_cast<long>(fanout - 1));
+  
+    auto it = std::upper_bound(globalLayout.begin() + rootMap[rank], 
+                               globalLayout.begin() + rootMap[nrank], key,
+    [](const KeyType& k, const cdfPoint& c) {
+      return k < c.knot;
+    });
     
-    // if (c.cpk.cols() >= 2) {
-    //   std::cout << c.knots << std::endl;
-    //   std::cout << c.cpk << std::endl;
-    //   std::cout << c.cap_ * 200000000 - c.DIST << std::endl;
-    //   auto it = std::upper_bound(c.knots.data(), c.knots.data() + c.knots.cols(), key);
-    //   int idx = std::distance(c.knots.data(), it);
+    auto LITER = std::max(std::prev(it, LRANGE), globalLayout.begin());;
+    auto RITER = std::min(std::next(it, RRANGE), globalLayout.end() - 1);
 
-
-      
-
-
-    //   std::cout << "[" << ground_truth << "] " << c.cpk(idx - 1) * 200000000 << " , " << c.cpk(idx) * 200000000 << std::endl;
-      
-    //   int lhs = c.cpk(idx - 1) * 200000000;
-    //   int rhs = c.cpk(idx) * 200000000;
-    //   if (lhs <= ground_truth && ground_truth <= rhs) return true;
-    //   else return false;
-    // } else {
-
-    //   std::cout << "[" << ground_truth << "] " << c.cap_ * 200000000 - c.DIST << " , " << c.cap_ * 200000000 + c.DIST << std::endl;
-    //   // int lhs = c.cap_ * 200000000 - c.DIST;
-    //   // int rhs = c.cap_ * 200000000 + c.DIST;
-    //   int rhs = c.cap_ * 200000000;
-    //   int lhs = rank > 0 ? estimates_[rank - 1].cap_ * 200000000 : 0;
-    //   if (lhs <= ground_truth && ground_truth <= rhs) return true;
-    //   else return false;
-    // }
-    // mpf cdf = get_cdf(estimates_[rank], key);
-    // uint64_t res = static_cast<uint64_t>(input_size * (cdf + rank) / fanout_);
-    // return 22;
+    return std::make_pair(LITER->cdf, RITER->cdf);
   }
 
-  // void printLCD() {
-  //   int idx = 0; 
-  //   for (auto i : estimates_) {
-  //     // i.print_lcd();
-  //     ++idx;
-  //     std::cout << "[" << idx << "] " << i.lower << ", " << i.upper << std::endl;
-  //   }
-  // }
+  size_t getSize() const {
+    auto key_size = sizeof(KeyType);
+    auto cdf_size = sizeof(size_t);
+    auto int_size = sizeof(int);
+    auto gl_size = globalLayout.size() * (key_size + cdf_size);
+    auto rm_size = rootMap.size() * int_size;
+    return gl_size + rm_size;
+  }
 
 };
 
