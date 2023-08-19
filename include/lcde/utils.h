@@ -689,6 +689,30 @@ double* cast(const VectorT<mpf>& v) {
   return res;
 }
 
+// Fast approximation of the exponential function
+// https://github.com/simonpf/fastexp
+template <typename T, size_t degree, size_t i>
+struct ExpRecursion {
+  static T evaluate(T x) {
+    x = ExpRecursion<T, degree, i + 1>::evaluate(x);
+    return x * x;
+  }
+};
+
+template <typename T, size_t degree>
+struct ExpRecursion<T, degree, degree> {
+  static T evaluate(T x) {
+    constexpr T c = 1.0 / static_cast<T>(1u << degree);
+    x = 1.0 + c * x;
+    return x;
+  }
+};
+
+template <typename T>
+T exp(T x) {
+  return ExpRecursion<T, 30, 0>::evaluate(x);
+}
+
 }         // namespace lcde
 
 #endif    // LCDE_UTILS_H_
