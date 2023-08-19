@@ -97,6 +97,23 @@ class TestUnit {
     std::vector<std::vector<Vec>> lines;
     std::vector<std::vector<Vec>> knots;
 
+    // Parameters for plotting with Python
+    // The original equation for calculating the CDF is
+    /*
+      (base + ratio * (cpk - (fk / slope))) + (ratio / (C * slope)) * e^{slope * x + intercept}
+    = (base + ratio * (cpk - (fk / slope))) + e^{slope * x + intercept + ln(ratio / (C * slope))}
+    */
+    // which requires 6 parameters. 
+    // We reduce the number of parameters into 3, by precomputing each term.
+    // The resulting equation is
+    /*
+      addend + e^{slope * x + newIntercept}
+    */
+    std::vector<std::vector<mpf>> mpf_slopes;
+    std::vector<std::vector<mpf>> mpf_thetas;
+    std::vector<std::vector<mpf>> addends;
+    std::vector<std::vector<mpf>> newIntercepts;
+
     double lower;
     double upper = 0;
 
@@ -110,13 +127,81 @@ class TestUnit {
       cpk.push_back(tmp_cpk_first_row);
       fk.push_back(convertToSTL(lcd.fk));
 
-      std::vector<double> temp_theta = concatenate3(lcd.lower, lcd.theta, lcd.upper);
+      std::vector<double> temp_theta = d_concatenate3(lcd.lower, lcd.theta, lcd.upper);
       theta.push_back(temp_theta);
 
       upper = lcd.upper > upper ? lcd.upper : upper;
 
       bases.push_back(static_cast<double>(tu->current_base));
       ratios.push_back(static_cast<double>(tu->current_ratio));
+    }
+
+    void mpfAppend(const LCD& lcd) {
+      // Append C
+      const mpf t_C = lcd.C;
+
+      // Append slopes
+      mpf_slopes.push_back(convert(lcd.slope));
+      const auto& t_slope = lcd.slope;
+
+      // Append intercepts
+      const auto& t_intercept = lcd.intercept;
+
+      // Append cpks
+      VectorT<mpf> cpk_first_row = lcd.cpk.row(0);
+      std::vector<mpf> t_cpk_first_row = convert(cpk_first_row);
+      t_cpk_first_row.insert(t_cpk_first_row.begin(), 0.);
+
+      // Append fk
+      const auto& t_fk = lcd.fk;
+
+      // Append theta
+      std::vector<mpf> t_theta = concatenate3(lcd.lower, lcd.theta, lcd.upper);
+      mpf_thetas.push_back(t_theta);
+
+      std::vector<mpf> t_addend;
+      std::vector<mpf> t_newIntercept;
+      const mpf& t_base = tu->current_base;
+      const mpf& t_ratio = tu->current_ratio;
+
+      const size_t interval_size = t_slope.size();
+      for (size_t i = 0; i < interval_size; ++i) {
+        mpf addend = (t_base + t_ratio * (t_cpk_first_row[i] - (t_fk[i] / t_slope[i])));
+        mpf t_ln;
+        if (t_slope[i] < 0)  {
+          t_ln = std::log(t_ratio / (t_C * -t_slope[i]));
+        } else {
+          t_ln = std::log(t_ratio / (t_C * t_slope[i]));
+        }
+        mpf newIntercept = t_intercept[i] + t_ln;
+        t_addend.push_back(addend);
+        t_newIntercept.push_back(newIntercept);
+      }
+      addends.push_back(t_addend);
+      newIntercepts.push_back(t_newIntercept);
+    }
+
+    void mpfPlot() {
+      Plot2D plot0;
+
+      plot0.xlabel("Data");
+      plot0.ylabel("Cumulative Density");
+
+      plot0.xrange(theta[0][0], upper);
+
+      for (size_t i = 0; i < C.size(); ++i) {
+        for (size_t j = 0; j < lines[i].size(); ++j) {
+          plot0.drawCurve(lines[i][j], static_cast<double>(addends[i][j]) + (mpf_slopes[i][j] >= 0 ? 1 : -1) * exp(static_cast<double>(mpf_slopes[i][j]) * lines[i][j] + static_cast<double>(newIntercepts[i][j])))
+               .lineColor("red");
+        }
+      }
+
+      plot0.legend().hide();
+
+      Figure fig = {{plot0}};
+      Canvas canvas = {{fig}};
+      canvas.size(600, 450);
+      canvas.show();
     }
 
     void finalize() {
@@ -190,9 +275,20 @@ class TestUnit {
     }
 
     // Auxiliary function to concatenate lower, theta, and upper
-    inline std::vector<double> concatenate3(mpf lower, const VectorT<mpf> t, mpf upper) {
+    inline std::vector<double> d_concatenate3(mpf lower, const VectorT<mpf> t, mpf upper) {
       VectorT<mpf> temp = concatenate(concatenate(lower, t), upper);
       return convertToSTL(temp);
+    }
+
+    inline std::vector<mpf> convert(const VectorT<mpf>& v) {
+      std::vector<mpf> res(v.data(), v.data() + v.size());
+      return res;
+    }
+
+    // Auxiliary function to concatenate lower, theta, and upper
+    inline std::vector<mpf> concatenate3(mpf lower, const VectorT<mpf> t, mpf upper) {
+      VectorT<mpf> temp = concatenate(concatenate(lower, t), upper);
+      return convert(temp);
     }
 
     // Prepare the points for line plotting
@@ -437,13 +533,98 @@ class TestUnit {
     }
   }
 
+  void countThetas() const {
+    std::cout << std::fixed;
+    std::cout.precision(15);
+    for (size_t i = 0; i < testObject.slopes.size(); ++i) {
+      std::cout << std::endl;
+      auto& vec = testObject.slopes[i];
+      std::cout << "Slopes : [" << vec[0] << " , " << vec[vec.size() - 1] << "]" \
+                << " : " << vec.size() << std::endl;
+      auto& vec2 = testObject.intercepts[i];
+      std::cout << "Intercepts [" << vec2[0] << " , " << vec2[vec2.size() - 1] << "]" \
+                << " : " << vec2.size() << std::endl;
+      auto& vec3 = testObject.theta[i];
+      std::cout << "Thetas [" << vec3[0] << " , " << vec3[vec3.size() - 1] << "]" \
+                << " : " << vec3.size() << std::endl;
+      auto& vec4 = testObject.C[i];
+      std::cout << "C [" << vec4 << "] " << std::endl;
+      auto& vec5 = testObject.fk[i];
+      std::cout << "fks [" << vec5[0] << " , " << vec5[vec5.size() - 1] << "]" \
+                << " : " << vec5.size() << std::endl;
+    }
+  }
+
+  // Find the appropriate index from the theta vector
+  void findFromVector(const KeyType& key) const {
+    long rank = static_cast<long>(slope * key + intercept);
+    rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
+
+    const auto& targetTheta = testObject.theta[rank];
+
+    for (auto element : targetTheta) {
+      std::cout << element << " ";
+    }
+    std::cout << std::endl;
+
+    auto it = std::upper_bound(targetTheta.begin(), targetTheta.end(), key);
+
+    std::cout << *it << std::endl;
+  }
+
+  // Find the index of a given key
+  void find(const KeyType& key) const {
+    long rank = static_cast<long>(slope * key + intercept);
+    rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
+    
+    // auto iter = std::upper_bound(testObject.theta[rank].begin(),
+    //                              testObject.theta[rank].end(), key);
+
+
+    std::cout << rank << std::endl;
+    std::cout << testObject.theta.size() << std::endl;
+    // for (auto i : testObject.theta[rank]) {
+    //   std::cout << i << " ";
+    // }
+    // std::cout << std::endl;
+    // long idx = std::distance(testObject.theta[rank].begin(), iter - 1);
+
+    // std::cout << testObject.theta[rank].size() << " , " << idx << std::endl;
+
+
+    // auto s = testObject.slopes[rank][idx];
+    // auto i = testObject.intercepts[rank][idx];
+    // auto cpk = testObject.cpk[rank][idx];
+    // auto fk = testObject.fk[rank][idx];
+    // auto C = testObject.C[rank];
+    // auto base = testObject.bases[rank];
+    // auto ratio = testObject.ratios[rank];
+
+    // std::cout << base + ratio * (cpk + ((std::exp(s * key + i) / C) - fk) / s);
+  }
+
+  // Compare the found index of a key with the ground truth index
+  void compare(const::std::vector<KeyType>& data) {
+    // for (size_t i = 0; i < data.size(); ++i) {
+
+    // }
+    size_t i = 100000000;
+    std::cout << data[i] << std::endl;
+    KeyType key = data[i];
+    find(key);
+  }
+  /*
+  https://quick-bench.com/q/738WZAS9aPv4Spoo8KVXNZ6t3S0
+  https://codereview.stackexchange.com/questions/252427/c-performance-linear-regression-in-other-way
+  http://spfrnd.de/posts/2018-03-10-fast-exponential.html
+  */
+
   void plot(bool doSave = false, std::string dataset = "plot_result", 
             std::string extension = "pdf") {
     testObject.finalize();
     std::string saveFileName = "./plot/" + dataset + "." + extension;
     testObject.plot(doSave, saveFileName);
   }
-
 };
 
 }
