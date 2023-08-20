@@ -31,9 +31,6 @@ int main(int argc, char** argv) {
   cxxopts::Options options("plot", "Plot cumulative density using LCDE");
   options.add_options()
     ("data", "Data file with keys", cxxopts::value<std::string>())
-    ("s,save", "Save plot file", cxxopts::value<bool>()->default_value("false"))
-    ("e,extension", "Extension of the saved plot file", 
-                                 cxxopts::value<std::string>())
     ("r,sampling-rate", "Sampling rate for building LCDE", 
                                  cxxopts::value<double>())
     ("f,fanout", "Fanout of the root linear model", 
@@ -44,8 +41,6 @@ int main(int argc, char** argv) {
   auto result = options.parse(argc, argv);
 
   const std::string dataset = result["data"].as<std::string>();
-  const bool save = result.count("save");
-  const std::string extension = result["extension"].as<std::string>();
   const double sampling_rate = result["sampling-rate"].as<double>();
   const int fanout = result["fanout"].as<int>();
   
@@ -58,7 +53,7 @@ int main(int argc, char** argv) {
   std::vector<mpf> data(uint_data.begin(), uint_data.end());
 
   tu.build(data, params);
-  tu.plot(save, dataset, extension);
+  tu.printJSON(dataset);
   
   return 0;
 }
