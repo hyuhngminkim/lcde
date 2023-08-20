@@ -24,12 +24,22 @@ if [ ${do_save} = true ]; then
   mkdir -p ./plot
 fi
 
+mkdir -p ./parameters
+
+PYTHON=python
+PYPLOT=plot.py
+if [ ! -f ${PYPLOT} ]; then
+  echo "plot python code does not exist"
+  exit
+fi
+
 for dataset in $(cat scripts/datasets_for_plotting.txt); do
   echo "Plotting dataset ${dataset}"
-  if [ ${do_save} = true ]; then
-    ${PLOT} "${dataset}" -s "${save}" -e "${save_type}" -r ${sampling_rate} -f ${fanout}
+  ${PLOT} "${dataset}" -r ${sampling_rate} -f ${fanout}
+  if  [ ${do_save} = true ]; then
+    ${PYTHON} ${PYPLOT} -d "${dataset}" -s True -e ${save_type}
     echo "Saved plot to ./plot/${dataset}.${save_type}"
-  else 
-    ${PLOT} ${dataset} -r ${sampling_rate} -f ${fanout}
+  else
+    ${PYTHON} ${PYPLOT} -d "${dataset}"
   fi
 done
