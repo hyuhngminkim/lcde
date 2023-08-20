@@ -124,6 +124,8 @@ data/
 plot/
 plots/
 overlap/
+# Parameters directory
+parameters/
 # Ignore old test files
 test/
 # Temporary files created during plotting
