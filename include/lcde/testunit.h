@@ -151,8 +151,8 @@ class TestUnit {
 
       // Append cpks
       VectorT<mpf> cpk_first_row = lcd.cpk.row(0);
-      std::vector<mpf> t_cpk_first_row = convert(cpk_first_row);
-      t_cpk_first_row.insert(t_cpk_first_row.begin(), 0.);
+      std::vector<mpf> t_cpk = convert(cpk_first_row);
+      t_cpk.insert(t_cpk.begin(), 0.);
 
       // Append fk
       const auto& t_fk = lcd.fk;
@@ -168,14 +168,26 @@ class TestUnit {
 
       const size_t interval_size = t_slope.size();
       for (size_t i = 0; i < interval_size; ++i) {
-        mpf addend = (t_base + t_ratio * (t_cpk_first_row[i] - (t_fk[i] / t_slope[i])));
-        mpf t_ln;
-        if (t_slope[i] < 0)  {
-          t_ln = std::log(t_ratio / (t_C * -t_slope[i]));
+        mpf addend;
+        mpf newIntercept;
+        if (t_slope[i] != 0) {
+          addend = (t_base + t_ratio * (t_cpk[i] - (t_fk[i] / t_slope[i])));
+          mpf t_ln;
+          if (t_slope[i] < 0)  {
+            t_ln = std::log(t_ratio / (t_C * -t_slope[i]));
+          } else {
+            t_ln = std::log(t_ratio / (t_C * t_slope[i]));
+          }
+          newIntercept = t_intercept[i] + t_ln;
         } else {
-          t_ln = std::log(t_ratio / (t_C * t_slope[i]));
+          // When slope = 0, we cannot divide the integral by slope. 
+          // We calclate the cdf by addend + intercept * x for two reasons:
+          // 1. we must keep the slope variable to check if it is zero
+          // 2. we do not use the intercept variable
+          // We therefore store the value multiplied to x in intercept not slope
+          addend = t_base + t_ratio * (t_cpk[i] - (std::exp(t_intercept[i]) * t_theta[i]) / t_C);
+          newIntercept = (t_ratio * std::exp(t_intercept[i])) / t_C;
         }
-        mpf newIntercept = t_intercept[i] + t_ln;
         t_addend.push_back(addend);
         t_newIntercept.push_back(newIntercept);
       }
