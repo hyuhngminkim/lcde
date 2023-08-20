@@ -2,6 +2,8 @@
 #define LCDE_TEST_UNIT_H_
 
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <vector>
 #include <string>
 #include <limits>
@@ -179,6 +181,91 @@ class TestUnit {
       }
       addends.push_back(t_addend);
       newIntercepts.push_back(t_newIntercept);
+    }
+
+    void printJSON(const std::string& dataset) {
+      std::ofstream file;
+      std::string filename = "parameters/" + dataset + "_plot_parameters.json";
+      file.open(filename);
+
+      file << std::fixed << std::setprecision(30);
+      
+      file << "{\"parameters\":[";
+
+      for (size_t i = 0; i < mpf_thetas.size(); ++i) {
+        if (i > 0) file << ",";
+        file << "{";
+        // Abstract calculation
+        // print slopes
+        file << "\"slope\":[";
+        for (size_t j = 0; j < mpf_slopes[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << mpf_slopes[i][j];
+        }
+        file << "],";
+        // print thetas
+        file << "\"theta\":[";
+        for (size_t j = 0; j < mpf_thetas[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << mpf_thetas[i][j];
+        }
+        file << "],";
+        // print addends
+        file << "\"addend\":[";
+        for (size_t j = 0; j < addends[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << addends[i][j];
+        }
+        file << "],";
+        // print intercepts
+        file << "\"intercept\":[";
+        for (size_t j = 0; j < newIntercepts[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << newIntercepts[i][j];
+        }
+        // file << "]";
+
+        // Extended calculation
+        file << "],";
+        // print C
+        file << "\"C\":" << C[i] << ",";
+        // print intercepts
+        file << "\"exIntercept\":[";
+        for (size_t j = 0; j < intercepts[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << intercepts[i][j];
+        }
+        file << "],";
+        // print cpk
+        file << "\"excpk\":[";
+        for (size_t j = 0; j < cpk[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << cpk[i][j];
+        }
+        file << "],";
+        // print fk
+        file << "\"exfk\":[";
+        for (size_t j = 0; j < fk[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << fk[i][j];
+        }
+        file << "],";
+        // print theta
+        file << "\"extheta\":[";
+        for (size_t j = 0; j < theta[i].size(); ++j) {
+          if (j > 0) file << ",";
+          file << theta[i][j];
+        }
+        file << "]";
+        // End of extended version
+        file << "}";
+      }
+
+      file << "]}";
+
+      file.close();
+
+      return;
     }
 
     void mpfPlot() {
@@ -446,6 +533,7 @@ class TestUnit {
     }
 
     testObject.append(lcd_);
+    testObject.mpfAppend(lcd_);
     
     return;
   }
@@ -624,6 +712,10 @@ class TestUnit {
     testObject.finalize();
     std::string saveFileName = "./plot/" + dataset + "." + extension;
     testObject.plot(doSave, saveFileName);
+  }
+
+  void printJSON(const std::string& dataset) {
+    testObject.printJSON(dataset);
   }
 };
 
