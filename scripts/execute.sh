@@ -34,7 +34,7 @@ if [ ! -f ${PYPLOT} ]; then
 fi
 
 for dataset in $(cat scripts/datasets_for_plotting.txt); do
-  echo "Building LCDE on dataset ${dataset}"
+  echo "Building LCDE on ${dataset}"
   ${BUILD} "${dataset}" -r ${sampling_rate} -f ${fanout}
   echo "Plotting dataset ${dataset}"
   if  [ ${do_save} = true ]; then
