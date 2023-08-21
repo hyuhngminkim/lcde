@@ -14,8 +14,8 @@ while getopts t:r:f:s arg; do
   esac
 done
 
-PLOT=build/plot
-if [ ! -f ${PLOT} ]; then
+BUILD=build/build
+if [ ! -f ${BUILD} ]; then
   echo "plot binary does not exist"
   exit
 fi
@@ -34,8 +34,9 @@ if [ ! -f ${PYPLOT} ]; then
 fi
 
 for dataset in $(cat scripts/datasets_for_plotting.txt); do
+  echo "Building LCDE on dataset ${dataset}"
+  ${BUILD} "${dataset}" -r ${sampling_rate} -f ${fanout}
   echo "Plotting dataset ${dataset}"
-  ${PLOT} "${dataset}" -r ${sampling_rate} -f ${fanout}
   if  [ ${do_save} = true ]; then
     ${PYTHON} ${PYPLOT} -d "${dataset}" -s True -e ${save_type}
     echo "Saved plot to ./plot/${dataset}.${save_type}"
