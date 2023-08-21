@@ -207,7 +207,6 @@ class TestUnit {
       for (size_t i = 0; i < mpf_thetas.size(); ++i) {
         if (i > 0) file << ",";
         file << "{";
-        // Abstract calculation
         // print slopes
         file << "\"slope\":[";
         for (size_t j = 0; j < mpf_slopes[i].size(); ++j) {
@@ -235,41 +234,7 @@ class TestUnit {
           if (j > 0) file << ",";
           file << newIntercepts[i][j];
         }
-        // file << "]";
-
-        // Extended calculation
-        file << "],";
-        // print C
-        file << "\"C\":" << C[i] << ",";
-        // print intercepts
-        file << "\"exIntercept\":[";
-        for (size_t j = 0; j < intercepts[i].size(); ++j) {
-          if (j > 0) file << ",";
-          file << intercepts[i][j];
-        }
-        file << "],";
-        // print cpk
-        file << "\"excpk\":[";
-        for (size_t j = 0; j < cpk[i].size(); ++j) {
-          if (j > 0) file << ",";
-          file << cpk[i][j];
-        }
-        file << "],";
-        // print fk
-        file << "\"exfk\":[";
-        for (size_t j = 0; j < fk[i].size(); ++j) {
-          if (j > 0) file << ",";
-          file << fk[i][j];
-        }
-        file << "],";
-        // print theta
-        file << "\"extheta\":[";
-        for (size_t j = 0; j < theta[i].size(); ++j) {
-          if (j > 0) file << ",";
-          file << theta[i][j];
-        }
         file << "]";
-        // End of extended version
         file << "}";
       }
 
