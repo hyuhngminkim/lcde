@@ -109,7 +109,7 @@ class TestUnit {
       const mpf t_C = lcd.C;
 
       // Append slopes
-      mpf_slopes.push_back(convert(lcd.slope));
+      slopes.push_back(convertToSTL(lcd.slope));
       const auto& t_slope = lcd.slope;
 
       // Append intercepts
@@ -125,7 +125,7 @@ class TestUnit {
 
       // Append theta
       std::vector<mpf> t_theta = concatenate3(lcd.lower, lcd.theta, lcd.upper);
-      mpf_thetas.push_back(t_theta);
+      thetas.push_back(t_theta);
 
       std::vector<mpf> t_addend;
       std::vector<mpf> t_newIntercept;
@@ -170,21 +170,21 @@ class TestUnit {
       
       file << "{\"parameters\":[";
 
-      for (size_t i = 0; i < mpf_thetas.size(); ++i) {
+      for (size_t i = 0; i < thetas.size(); ++i) {
         if (i > 0) file << ",";
         file << "{";
         // print slopes
         file << "\"slope\":[";
-        for (size_t j = 0; j < mpf_slopes[i].size(); ++j) {
+        for (size_t j = 0; j < slopes[i].size(); ++j) {
           if (j > 0) file << ",";
-          file << mpf_slopes[i][j];
+          file << slopes[i][j];
         }
         file << "],";
         // print thetas
         file << "\"theta\":[";
-        for (size_t j = 0; j < mpf_thetas[i].size(); ++j) {
+        for (size_t j = 0; j < thetas[i].size(); ++j) {
           if (j > 0) file << ",";
-          file << mpf_thetas[i][j];
+          file << thetas[i][j];
         }
         file << "],";
         // print addends
