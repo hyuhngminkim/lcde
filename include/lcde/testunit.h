@@ -245,66 +245,6 @@ class TestUnit {
       return;
     }
 
-    void mpfPlot() {
-      Plot2D plot0;
-
-      plot0.xlabel("Data");
-      plot0.ylabel("Cumulative Density");
-
-      plot0.xrange(theta[0][0], upper);
-
-      for (size_t i = 0; i < C.size(); ++i) {
-        for (size_t j = 0; j < lines[i].size(); ++j) {
-          plot0.drawCurve(lines[i][j], static_cast<double>(addends[i][j]) + (mpf_slopes[i][j] >= 0 ? 1 : -1) * exp(static_cast<double>(mpf_slopes[i][j]) * lines[i][j] + static_cast<double>(newIntercepts[i][j])))
-               .lineColor("red");
-        }
-      }
-
-      plot0.legend().hide();
-
-      Figure fig = {{plot0}};
-      Canvas canvas = {{fig}};
-      canvas.size(600, 450);
-      canvas.show();
-    }
-
-    void finalize() {
-      for (size_t i = 0; i < C.size(); ++i) {
-        preparePlot(lines, knots, theta[i]);
-      }
-    }
-
-    void plot(const bool doSave = false, const std::string saveDirectory = "") {
-      // cdf
-      Plot2D plot0;
-
-      plot0.xlabel("Data");
-      plot0.ylabel("Cumulative Density");
-
-      plot0.xrange(theta[0][0], upper);
-
-      for (size_t i = 0; i < C.size(); ++i) {
-        for (size_t j = 0; j < lines[i].size(); ++j) {
-          plot0.drawCurve(lines[i][j], bases[i] + ratios[i] * (cpk[i][j] + ((exp(slopes[i][j] * lines[i][j] + intercepts[i][j]) / C[i]) - fk[i][j]) / slopes[i][j]))
-               .lineColor("red");
-          // plot0.drawPoints(knots[i][j], bases[i] + ratios[i] * (cpk[i][j] + ((exp(slopes[i][j] * knots[i][j] + intercepts[i][j]) / C[i]) - fk[i][j]) / slopes[i][j]))
-          //      .lineColor("red")
-          //      .pointType(7);
-        }
-      }
-
-      plot0.legend().hide();
-
-      Figure fig = {{plot0}};
-      Canvas canvas = {{fig}};
-      canvas.size(600, 450);
-      canvas.show();
-
-      if (doSave) {
-        canvas.save(saveDirectory);
-      }
-    }
-
     private:
     // Auxiliary function to append a mpf vector to a double vector
     inline void appendVectorT(VectorT<double>& v1, const VectorT<mpf>& v2) {
@@ -683,13 +623,6 @@ class TestUnit {
   https://codereview.stackexchange.com/questions/252427/c-performance-linear-regression-in-other-way
   http://spfrnd.de/posts/2018-03-10-fast-exponential.html
   */
-
-  void plot(bool doSave = false, std::string dataset = "plot_result", 
-            std::string extension = "pdf") {
-    testObject.finalize();
-    std::string saveFileName = "./plot/" + dataset + "." + extension;
-    testObject.plot(doSave, saveFileName);
-  }
 
   void printJSON(const std::string& dataset) {
     testObject.printJSON(dataset);
