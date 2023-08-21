@@ -82,22 +82,10 @@ class TestUnit {
       tu = &testUnitInstance;
     }
 
-    // LCD attributes required for plotting
-    std::vector<double> C;
-    std::vector<std::vector<double>> slopes;
-    std::vector<std::vector<double>> intercepts;
-    std::vector<std::vector<double>> cpk;
-    std::vector<std::vector<double>> fk;
-    std::vector<std::vector<double>> theta;
-
     // attributes required for calculating the proportional base and ratio of
     // the CDF of each data slice
     std::vector<double> bases;
     std::vector<double> ratios;
-
-    // sciplot attributes required for plotting
-    std::vector<std::vector<Vec>> lines;
-    std::vector<std::vector<Vec>> knots;
 
     // Parameters for plotting with Python
     // The original equation for calculating the CDF is
@@ -111,34 +99,12 @@ class TestUnit {
     /*
       addend + e^{slope * x + newIntercept}
     */
-    std::vector<std::vector<mpf>> mpf_slopes;
-    std::vector<std::vector<mpf>> mpf_thetas;
+    std::vector<std::vector<mpf>> slopes;
+    std::vector<std::vector<mpf>> thetas;
     std::vector<std::vector<mpf>> addends;
     std::vector<std::vector<mpf>> newIntercepts;
 
-    double lower;
-    double upper = 0;
-
     void append(const LCD& lcd) {
-      C.push_back(static_cast<double>(lcd.C));
-      slopes.push_back(convertToSTL(lcd.slope));
-      intercepts.push_back(convertToSTL(lcd.intercept));
-      VectorT<mpf> cpk_first_row = lcd.cpk.row(0);
-      std::vector<double> tmp_cpk_first_row = convertToSTL(cpk_first_row);
-      tmp_cpk_first_row.insert(tmp_cpk_first_row.begin(), 0.);
-      cpk.push_back(tmp_cpk_first_row);
-      fk.push_back(convertToSTL(lcd.fk));
-
-      std::vector<double> temp_theta = d_concatenate3(lcd.lower, lcd.theta, lcd.upper);
-      theta.push_back(temp_theta);
-
-      upper = lcd.upper > upper ? lcd.upper : upper;
-
-      bases.push_back(static_cast<double>(tu->current_base));
-      ratios.push_back(static_cast<double>(tu->current_ratio));
-    }
-
-    void mpfAppend(const LCD& lcd) {
       // Append C
       const mpf t_C = lcd.C;
 
@@ -151,7 +117,7 @@ class TestUnit {
 
       // Append cpks
       VectorT<mpf> cpk_first_row = lcd.cpk.row(0);
-      std::vector<mpf> t_cpk = convert(cpk_first_row);
+      std::vector<mpf> t_cpk = convertToSTL(cpk_first_row);
       t_cpk.insert(t_cpk.begin(), 0.);
 
       // Append fk
@@ -246,45 +212,7 @@ class TestUnit {
     }
 
     private:
-    // Auxiliary function to append a mpf vector to a double vector
-    inline void appendVectorT(VectorT<double>& v1, const VectorT<mpf>& v2) {
-      VectorT<double> v2_d = v2.cast<double>();
-      VectorT<double> temp(v1.size() + v2_d.size());
-      temp.head(v1.size()) = v1;
-      temp.tail(v2_d.size()) = v2_d;
-      v1 = temp;
-    }
-
-    inline void appendVectorT(VectorT<double>& v1, const VectorT<double>& v2) {
-      VectorT<double> temp(v1.size() + v2.size());
-      temp.head(v1.size()) = v1;
-      temp.tail(v2.size()) = v2;
-      v1 = temp;
-    }
-
-    // Auxiliary function to append a single mpf element to a double vector
-    inline void appendVectorT(VectorT<double>& v, const mpf& elem) {
-      VectorT<double> temp(v.size() + 1);
-      temp.head(v.size()) = v;
-      temp[v.size()] = static_cast<double>(elem);
-      v = temp;
-    }
-
-    // Auxiliary function to convert Eigen vector to std::vector
-    // Assumes the input Eigen vector has type mpf
-    inline std::vector<double> convertToSTL(const VectorT<mpf>& v) {
-      VectorT<double> d_v = v.cast<double>();
-      std::vector<double> res(d_v.data(), d_v.data() + d_v.size());
-      return res;
-    }
-
-    // Auxiliary function to concatenate lower, theta, and upper
-    inline std::vector<double> d_concatenate3(mpf lower, const VectorT<mpf> t, mpf upper) {
-      VectorT<mpf> temp = concatenate(concatenate(lower, t), upper);
-      return convertToSTL(temp);
-    }
-
-    inline std::vector<mpf> convert(const VectorT<mpf>& v) {
+    inline std::vector<mpf> convertToSTL(const VectorT<mpf>& v) {
       std::vector<mpf> res(v.data(), v.data() + v.size());
       return res;
     }
@@ -292,47 +220,7 @@ class TestUnit {
     // Auxiliary function to concatenate lower, theta, and upper
     inline std::vector<mpf> concatenate3(mpf lower, const VectorT<mpf> t, mpf upper) {
       VectorT<mpf> temp = concatenate(concatenate(lower, t), upper);
-      return convert(temp);
-    }
-
-    // Prepare the points for line plotting
-    inline Vec prepareLine(double lhs, double rhs) {
-      int interval = 100;    // plot 2000 points
-      return linspace(lhs, rhs, interval);
-    }
-
-    // Prepare the points for knot plotting
-    inline Vec prepareKnot(double lhs, double rhs) {
-      return linspace(lhs, rhs, 1);
-    }
-
-    void preparePlot(std::vector<std::vector<Vec>>& l,
-                     std::vector<std::vector<Vec>>& k,
-                     const std::vector<double>& t) {
-      assert(t.size() >= 2);
-      std::vector<Vec> res_line;
-      std::vector<Vec> res_knot;
-      if (t.size() == 2) {  // theta has no elements other than lower / upper
-        res_line.push_back(prepareLine(t[0], t[1]));
-        res_knot.push_back(prepareKnot(t[0], t[1]));
-      } else {
-        for (size_t i = 1; i < t.size(); ++i) {
-          res_line.push_back(prepareLine(t[i - 1], t[i]));
-          res_knot.push_back(prepareKnot(t[i - 1], t[i]));
-        }
-      }
-      l.push_back(res_line);
-      k.push_back(res_knot);
-    }
-
-    void saveCanvas(Canvas canvas, std::string dir) {
-      if (dir.empty()) {
-        std::cerr << "Dataset name is not specified. File is not saved. " << std::endl;
-        return;
-      } else {
-        canvas.save(dir);
-        return;
-      }
+      return convertToSTL(temp);
     }
 
   } testObject;
@@ -450,7 +338,6 @@ class TestUnit {
     }
 
     testObject.append(lcd_);
-    testObject.mpfAppend(lcd_);
     
     return;
   }
