@@ -102,7 +102,7 @@ class TestUnit {
     std::vector<std::vector<mpf>> slopes;
     std::vector<std::vector<mpf>> thetas;
     std::vector<std::vector<mpf>> addends;
-    std::vector<std::vector<mpf>> newIntercepts;
+    std::vector<std::vector<mpf>> intercepts;
 
     void append(const LCD& lcd) {
       // Append C
@@ -158,7 +158,23 @@ class TestUnit {
         t_newIntercept.push_back(newIntercept);
       }
       addends.push_back(t_addend);
-      newIntercepts.push_back(t_newIntercept);
+      intercepts.push_back(t_newIntercept);
+    }
+
+    // When there are less than min_size elements for training, we add dummy
+    // parameters for normalizing search operations
+    void append() {
+      // Set slope = 0, intercept = 0, addend = base. 
+      // theta has no meaning in calculation, and we set 0 as dummy data. 
+      std::vector<mpf> t_slope{ 0 };
+      std::vector<mpf> t_theta{ 0 };
+      std::vector<mpf> t_addend{ tu->current_base };
+      std::vector<mpf> t_newIntercept{ 0 };
+
+      slopes.push_back(t_slope);
+      thetas.push_back(t_theta);
+      addends.push_back(t_addend);
+      intercepts.push_back(t_newIntercept);
     }
 
     void printJSON(const std::string& dataset) {
@@ -196,9 +212,9 @@ class TestUnit {
         file << "],";
         // print intercepts
         file << "\"intercept\":[";
-        for (size_t j = 0; j < newIntercepts[i].size(); ++j) {
+        for (size_t j = 0; j < intercepts[i].size(); ++j) {
           if (j > 0) file << ",";
-          file << newIntercepts[i][j];
+          file << intercepts[i][j];
         }
         file << "]";
         file << "}";
@@ -392,7 +408,7 @@ class TestUnit {
       if (model_idx == 0) {                      // First model
         if (current_training_data.size() < min_size) {
           current_training_data.push_back(point(0, 0));
-          continue;
+          testObject.append();
         } else {
           max = current_training_data.back();
 
@@ -402,7 +418,7 @@ class TestUnit {
         }
       } else if (model_idx == fanout - 1) {      // Last model
         if (current_training_data.size() < min_size) {
-          continue;
+          testObject.append();
         } else {
           min = training_data[model_idx - 1].back();
 
@@ -412,7 +428,7 @@ class TestUnit {
       } else {                                    // Intermediate models
         if (current_training_data.size() < min_size) {
           current_training_data.push_back(training_data[model_idx - 1].back());
-          continue;
+          testObject.append();
         } else {
           min = training_data[model_idx - 1].back();
           max = current_training_data.back();
@@ -465,46 +481,40 @@ class TestUnit {
   }
 
   // Find the index of a given key
-  void find(const KeyType& key) const {
+  int find(const KeyType& key) const {
+    constexpr long data_length = 200000000;
     long rank = static_cast<long>(slope * key + intercept);
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
+
+    if (testObject.thetas[rank].size() < 2) {   // Null interval
+      return data_length * testObject.addends[rank][0];
+    } else {
+      auto iter = std::upper_bound(testObject.thetas[rank].begin(),
+                                   testObject.thetas[rank].end(), key, 
+      [](const auto& lhs, const auto& rhs) {
+        return lhs <= rhs;
+      });
+      long idx = std::distance(testObject.thetas[rank].begin(), iter - 1);
+      idx = std::min(std::max(idx, 0L), static_cast<long>(testObject.slopes[rank].size() - 1));
+      auto& a = testObject.addends[rank][idx];
+      auto& s = testObject.slopes[rank][idx];
+      auto& i = testObject.intercepts[rank][idx];
+
+      if (s == 0) {
+        return static_cast<int>(data_length * a);
+      } else if (s > 0) {
+        mpf tmp_key = key > testObject.thetas[rank][testObject.thetas[rank].size() - 1] ? testObject.thetas[rank][testObject.thetas[rank].size() - 1]
+                    : (key < testObject.thetas[rank][0] ? testObject.thetas[rank][0] : key);
+        return static_cast<int>(data_length * (a + std::exp(s * tmp_key + i)));
+      } else {
+        mpf tmp_key = key > testObject.thetas[rank][testObject.thetas[rank].size() - 1] ? testObject.thetas[rank][testObject.thetas[rank].size() - 1]
+                    : (key < testObject.thetas[rank][0] ? testObject.thetas[rank][0] : key);
+        return static_cast<int>(data_length * (a - std::exp(s * tmp_key + i)));
+      }
+    }
     
-    // auto iter = std::upper_bound(testObject.theta[rank].begin(),
-    //                              testObject.theta[rank].end(), key);
-
-
-    std::cout << rank << std::endl;
-    std::cout << testObject.theta.size() << std::endl;
-    // for (auto i : testObject.theta[rank]) {
-    //   std::cout << i << " ";
-    // }
-    // std::cout << std::endl;
-    // long idx = std::distance(testObject.theta[rank].begin(), iter - 1);
-
-    // std::cout << testObject.theta[rank].size() << " , " << idx << std::endl;
-
-
-    // auto s = testObject.slopes[rank][idx];
-    // auto i = testObject.intercepts[rank][idx];
-    // auto cpk = testObject.cpk[rank][idx];
-    // auto fk = testObject.fk[rank][idx];
-    // auto C = testObject.C[rank];
-    // auto base = testObject.bases[rank];
-    // auto ratio = testObject.ratios[rank];
-
-    // std::cout << base + ratio * (cpk + ((std::exp(s * key + i) / C) - fk) / s);
   }
 
-  // Compare the found index of a key with the ground truth index
-  void compare(const::std::vector<KeyType>& data) {
-    // for (size_t i = 0; i < data.size(); ++i) {
-
-    // }
-    size_t i = 100000000;
-    std::cout << data[i] << std::endl;
-    KeyType key = data[i];
-    find(key);
-  }
   /*
   https://quick-bench.com/q/738WZAS9aPv4Spoo8KVXNZ6t3S0
   https://codereview.stackexchange.com/questions/252427/c-performance-linear-regression-in-other-way
