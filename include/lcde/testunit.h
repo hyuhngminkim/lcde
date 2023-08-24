@@ -448,6 +448,41 @@ class TestUnit {
     }
   }
 
+  void calculateError(const KeyType& key, const long& ground_truth) {
+    long rank = static_cast<long>(slope * key + intercept);
+    rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
+
+    const auto& thetas = testObject.thetas[rank];
+    const auto& slopes = testObject.slopes[rank];
+    const auto& intercepts = testObject.intercepts[rank];
+    const auto& addends = testObject.addends[rank];
+    const auto thetaSize = thetas.size();
+
+    const long lastIdx = thetaSize - 1;
+    const KeyType tmp_key = std::max(thetas[0], std::min(thetas[lastIdx], key));
+
+    long error = 0;
+    long search_result;
+
+    if (thetaSize < 2) {
+      search_result = data_size * addends[0];
+      error = std::abs(search_result - ground_truth);
+      if (error > testObject.errors[rank][0]) testObject.errors[rank][0] = error;
+      return;
+    } else {
+      auto iter = std::upper_bound(thetas.begin(), thetas.end(), key);
+      long idx = std::min(std::max(static_cast<long>(std::distance(thetas.begin(), iter) - 1), 0L), static_cast<long>(slopes.size() - 1));
+      const auto& a = addends[idx];
+      const auto& s = slopes[idx];
+      const auto& i = intercepts[idx];
+
+      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
+      error = std::abs(search_result - ground_truth);
+      if (error > testObject.errors[rank][idx]) testObject.errors[rank][idx] = error;
+      return;
+    }
+  }
+
   std::pair<size_t, size_t> find(const KeyType& key) const {
     long rank = static_cast<long>(slope * key + intercept);
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
@@ -474,7 +509,7 @@ class TestUnit {
       const auto& s = slopes[idx];
       const auto& i = intercepts[idx];
 
-      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * exp(s * tmp_key + i)));
+      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
       error = testObject.errors[rank][idx];
     }
 
