@@ -26,7 +26,7 @@ if __name__=="__main__":
     file_path = "./parameters/" + dataset + "_plot_parameters.json"
     file = open(file_path, 'r')
     data = json.load(file)
-    parameters = data["parameters"]
+    full_parameters = data["parameters"]
     file.close()       
     plot_title = dataset.split(sep='_')[0]
 
@@ -36,6 +36,12 @@ if __name__=="__main__":
     plt.xlabel("x")
     plt.ylabel("Cumulative Distribution")
     plt.title(plot_title)
+
+    parameters = []
+    for p in full_parameters:
+        if len(p["theta"]) < 2:
+            continue
+        parameters.append(p)
 
     # Main plot loop
     for idx, p in enumerate(parameters):
