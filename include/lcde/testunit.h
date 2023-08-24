@@ -66,6 +66,26 @@ class TestUnit {
   mpf current_ratio = 0;
   long data_size;
 
+  // Parameters for calculating index
+  // The original equation for calculating the CDF is
+  /*
+    (base + ratio * (cpk - (fk / slope))) + (ratio / (C * slope)) * e^{slope * x + intercept}
+  = (base + ratio * (cpk - (fk / slope))) + e^{slope * x + intercept + ln(ratio / (C * slope))}
+  */
+  // which requires 6 parameters. 
+  // We reduce the number of parameters into 3, by precomputing each term.
+  // The resulting equation is
+  /*
+    addend + e^{slope * x + newIntercept}
+  */
+  struct knotObject {
+    mpf slope;
+    mpf intercept;
+    mpf theta;
+    mpf addend;
+    long error;
+  };
+
   // Struct cdfPoint is used to reduce the memory consumption.
   // However, memory consumption is not a matter in this testing environment.
   // We therefore define a new struct that stores all necessary elements for
@@ -82,57 +102,37 @@ class TestUnit {
       tu = &testUnitInstance;
     }
 
-    // Parameters for plotting with Python
-    // The original equation for calculating the CDF is
-    /*
-      (base + ratio * (cpk - (fk / slope))) + (ratio / (C * slope)) * e^{slope * x + intercept}
-    = (base + ratio * (cpk - (fk / slope))) + e^{slope * x + intercept + ln(ratio / (C * slope))}
-    */
-    // which requires 6 parameters. 
-    // We reduce the number of parameters into 3, by precomputing each term.
-    // The resulting equation is
-    /*
-      addend + e^{slope * x + newIntercept}
-    */
-    std::vector<std::vector<mpf>> slopes;
-    std::vector<std::vector<mpf>> thetas;
-    std::vector<std::vector<mpf>> addends;
-    std::vector<std::vector<mpf>> intercepts;
-    std::vector<std::vector<long>> errors;
-
+    std::vector<std::vector<knotObject>> knots;
+    
     void append(const LCD& lcd) {
-      // Append C
+      // C
       const mpf t_C = lcd.C;
-
-      // Append slopes
-      slopes.push_back(convertToSTL(lcd.slope));
+      // slopes
       const auto& t_slope = lcd.slope;
-
-      // Append intercepts
+      // intercepts
       const auto& t_intercept = lcd.intercept;
-
-      // Append cpks
+      // cpk
       VectorT<mpf> cpk_first_row = lcd.cpk.row(0);
       std::vector<mpf> t_cpk = convertToSTL(cpk_first_row);
       t_cpk.insert(t_cpk.begin(), 0.);
-
-      // Append fk
+      // fk
       const auto& t_fk = lcd.fk;
-
       // Append theta
       std::vector<mpf> t_theta = concatenate3(lcd.lower, lcd.theta, lcd.upper);
-      thetas.push_back(t_theta);
 
       std::vector<mpf> t_addend;
       std::vector<mpf> t_newIntercept;
       const mpf& t_base = tu->current_base;
       const mpf& t_ratio = tu->current_ratio;
 
+      std::vector<knotObject> t_ko;
+
       const size_t interval_size = t_slope.size();
       for (size_t i = 0; i < interval_size; ++i) {
+        knotObject ko;
         mpf addend;
         mpf newIntercept;
-        if (t_slope[i] != 0) {
+         if (t_slope[i] != 0) {
           addend = (t_base + t_ratio * (t_cpk[i] - (t_fk[i] / t_slope[i])));
           mpf t_ln;
           if (t_slope[i] < 0)  {
@@ -150,33 +150,35 @@ class TestUnit {
           addend = t_base + t_ratio * (t_cpk[i] - (std::exp(t_intercept[i]) * t_theta[i]) / t_C);
           newIntercept = (t_ratio * std::exp(t_intercept[i])) / t_C;
         }
-        t_addend.push_back(addend);
-        t_newIntercept.push_back(newIntercept);
+        ko.slope = t_slope[i];
+        ko.intercept = newIntercept;
+        ko.theta = t_theta[i];
+        ko.addend = addend;
+        ko.error = 0;
+        t_ko.push_back(ko);
       }
-      addends.push_back(t_addend);
-      intercepts.push_back(t_newIntercept);
 
-      // Initialize calculation error by 0
-      std::vector<long> t_error(interval_size, 0);
-      errors.push_back(t_error);
+      // Last element for theta[-1]
+      knotObject ko = t_ko[interval_size - 1];
+      ko.theta = t_theta[interval_size];
+      t_ko.push_back(ko);
+
+      knots.push_back(t_ko);
     }
 
-    // When there are less than min_size elements for training, we add dummy
-    // parameters for normalizing search operations
     void append() {
+      std::vector<knotObject> t_ko;
+      knotObject ko;
       // Set slope = 0, intercept = 0, addend = base. 
-      // theta has no meaning in calculation, and we set 0 as dummy data. 
-      std::vector<mpf> t_slope{ 0 };
-      std::vector<mpf> t_theta{ 0 };
-      std::vector<mpf> t_addend{ tu->current_base };
-      std::vector<mpf> t_newIntercept{ 0 };
-      std::vector<long> t_error{ 0 };
+      // theta has no meaning in calculation, and we set 0 as dummy data.
+      ko.slope = 0;
+      ko.intercept = 0;
+      ko.theta = 0;
+      ko.error = 0;
+      ko.addend = tu->current_base;
 
-      slopes.push_back(t_slope);
-      thetas.push_back(t_theta);
-      addends.push_back(t_addend);
-      intercepts.push_back(t_newIntercept);
-      errors.push_back(t_error);
+      t_ko.push_back(ko);
+      knots.push_back(t_ko);
     }
 
     void printJSON(const std::string& dataset) {
@@ -188,35 +190,36 @@ class TestUnit {
       
       file << "{\"parameters\":[";
 
-      for (size_t i = 0; i < thetas.size(); ++i) {
+      for (size_t i = 0; i < tu->fanout; ++i) {
+        size_t knot_size = knots[i].size();
         if (i > 0) file << ",";
         file << "{";
         // print slopes
         file << "\"slope\":[";
-        for (size_t j = 0; j < slopes[i].size(); ++j) {
+        for (size_t j = 0; j < knot_size - 1; ++j) {
           if (j > 0) file << ",";
-          file << slopes[i][j];
+          file << knots[i][j].slope;
         }
         file << "],";
         // print thetas
         file << "\"theta\":[";
-        for (size_t j = 0; j < thetas[i].size(); ++j) {
+        for (size_t j = 0; j < knot_size; ++j) {
           if (j > 0) file << ",";
-          file << thetas[i][j];
+          file << knots[i][j].theta;
         }
         file << "],";
         // print addends
         file << "\"addend\":[";
-        for (size_t j = 0; j < addends[i].size(); ++j) {
+        for (size_t j = 0; j < knot_size - 1; ++j) {
           if (j > 0) file << ",";
-          file << addends[i][j];
+          file << knots[i][j].addend;
         }
         file << "],";
         // print intercepts
         file << "\"intercept\":[";
-        for (size_t j = 0; j < intercepts[i].size(); ++j) {
+        for (size_t j = 0; j < knot_size - 1; ++j) {
           if (j > 0) file << ",";
-          file << intercepts[i][j];
+          file << knots[i][j].intercept;
         }
         file << "]";
         file << "}";
@@ -452,33 +455,33 @@ class TestUnit {
     long rank = static_cast<long>(slope * key + intercept);
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
 
-    const auto& thetas = testObject.thetas[rank];
-    const auto& slopes = testObject.slopes[rank];
-    const auto& intercepts = testObject.intercepts[rank];
-    const auto& addends = testObject.addends[rank];
-    const auto thetaSize = thetas.size();
-
-    const long lastIdx = thetaSize - 1;
-    const KeyType tmp_key = std::max(thetas[0], std::min(thetas[lastIdx], key));
+    std::vector<knotObject>& knots = testObject.knots[rank];
 
     long error = 0;
     long search_result;
+    const long lastIdx = knots.size() - 1;
 
-    if (thetaSize < 2) {
-      search_result = data_size * addends[0];
+    if (lastIdx == 0) {
+      search_result = data_size * knots[0].addend;
       error = std::abs(search_result - ground_truth);
-      if (error > testObject.errors[rank][0]) testObject.errors[rank][0] = error;
+      if (error > knots[0].error) knots[0].error = error;
       return;
     } else {
-      auto iter = std::upper_bound(thetas.begin(), thetas.end(), key);
-      long idx = std::min(std::max(static_cast<long>(std::distance(thetas.begin(), iter) - 1), 0L), static_cast<long>(slopes.size() - 1));
-      const auto& a = addends[idx];
-      const auto& s = slopes[idx];
-      const auto& i = intercepts[idx];
+      auto iter = std::upper_bound(knots.begin(), knots.end(), key, 
+      [](const KeyType& k, const knotObject& ko) {
+        return k < ko.theta;
+      });
+      long idx = std::min(std::max(static_cast<long>(std::distance(knots.begin(), iter) - 1), 0L), static_cast<long>(lastIdx - 1));
+      const KeyType tmp_key = std::max(knots[0].theta, std::min(knots[lastIdx].theta, key));
+      knotObject& ko = knots[idx];
+      const mpf& a = ko.addend;
+      const mpf& s = ko.slope;
+      const mpf& i = ko.intercept;
+      long& e = ko.error;
 
-      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
+      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
       error = std::abs(search_result - ground_truth);
-      if (error > testObject.errors[rank][idx]) testObject.errors[rank][idx] = error;
+      if (error > e) e = error;
       return;
     }
   }
@@ -487,35 +490,33 @@ class TestUnit {
     long rank = static_cast<long>(slope * key + intercept);
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
 
-    const auto& thetas = testObject.thetas[rank];
-    const auto& slopes = testObject.slopes[rank];
-    const auto& intercepts = testObject.intercepts[rank];
-    const auto& addends = testObject.addends[rank];
-    const auto thetaSize = thetas.size();
-
-    const long lastIdx = thetaSize - 1;
-    const KeyType tmp_key = std::max(thetas[0], std::min(thetas[lastIdx], key));
+    const std::vector<knotObject>& knots = testObject.knots[rank];
 
     long error = 0;
     long search_result;
+    const long lastIdx = knots.size() - 1;
 
-    if (thetaSize < 2) {
-      search_result = data_size * addends[0];
-      error = testObject.errors[rank][0];
+    if (lastIdx == 0) {
+      search_result = data_size * knots[0].addend;
+      error = knots[0].error;
     } else {
-      auto iter = std::upper_bound(thetas.begin(), thetas.end(), key);
-      long idx = std::min(std::max(static_cast<long>(std::distance(thetas.begin(), iter) - 1), 0L), static_cast<long>(slopes.size() - 1));
-      const auto& a = addends[idx];
-      const auto& s = slopes[idx];
-      const auto& i = intercepts[idx];
+      auto iter = std::upper_bound(knots.begin(), knots.end(), key, 
+      [](const KeyType& k, const knotObject& ko) {
+        return k < ko.theta;
+      });
+      long idx = std::min(std::max(static_cast<long>(std::distance(knots.begin(), iter) - 1), 0L), static_cast<long>(lastIdx - 1));
+      const KeyType tmp_key = std::max(knots[0].theta, std::min(knots[lastIdx].theta, key));
+      const knotObject& ko = knots[idx];
+      const mpf& a = ko.addend;
+      const mpf& s = ko.slope;
+      const mpf& i = ko.intercept;
+      error = ko.error;
 
-      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
-      error = testObject.errors[rank][idx];
+      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
     }
 
-    long lhs = std::max(search_result - error, 0L);
-    long rhs = std::min(data_size, search_result + error);
-    return std::make_pair(static_cast<size_t>(lhs), static_cast<size_t>(rhs));
+    return std::make_pair(static_cast<size_t>(std::max(search_result - error, 0L)),
+                          static_cast<size_t>(std::min(data_size, search_result + error)));
   }
 
   /*
