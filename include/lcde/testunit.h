@@ -64,7 +64,7 @@ class TestUnit {
 
   mpf current_base = 0;
   mpf current_ratio = 0;
-  size_t data_size;
+  long data_size;
 
   // Struct cdfPoint is used to reduce the memory consumption.
   // However, memory consumption is not a matter in this testing environment.
@@ -82,11 +82,6 @@ class TestUnit {
       tu = &testUnitInstance;
     }
 
-    // attributes required for calculating the proportional base and ratio of
-    // the CDF of each data slice
-    std::vector<double> bases;
-    std::vector<double> ratios;
-
     // Parameters for plotting with Python
     // The original equation for calculating the CDF is
     /*
@@ -103,6 +98,7 @@ class TestUnit {
     std::vector<std::vector<mpf>> thetas;
     std::vector<std::vector<mpf>> addends;
     std::vector<std::vector<mpf>> intercepts;
+    std::vector<std::vector<long>> errors;
 
     void append(const LCD& lcd) {
       // Append C
@@ -159,6 +155,10 @@ class TestUnit {
       }
       addends.push_back(t_addend);
       intercepts.push_back(t_newIntercept);
+
+      // Initialize calculation error by 0
+      std::vector<long> t_error(interval_size, 0);
+      errors.push_back(t_error);
     }
 
     // When there are less than min_size elements for training, we add dummy
@@ -170,11 +170,13 @@ class TestUnit {
       std::vector<mpf> t_theta{ 0 };
       std::vector<mpf> t_addend{ tu->current_base };
       std::vector<mpf> t_newIntercept{ 0 };
+      std::vector<long> t_error{ 0 };
 
       slopes.push_back(t_slope);
       thetas.push_back(t_theta);
       addends.push_back(t_addend);
       intercepts.push_back(t_newIntercept);
+      errors.push_back(t_error);
     }
 
     void printJSON(const std::string& dataset) {
@@ -364,6 +366,7 @@ class TestUnit {
     // Set parameters
     sampling_rate = params[0];
     fanout = static_cast<long>(params[1]);
+    data_size = data.size();
 
     const long input_size = data.size();
     const long sample_size = std::min<long>(
@@ -439,80 +442,45 @@ class TestUnit {
         }
       }
     }
-  }
 
-  void countThetas() const {
-    std::cout << std::fixed;
-    std::cout.precision(15);
-    for (size_t i = 0; i < testObject.slopes.size(); ++i) {
-      std::cout << std::endl;
-      auto& vec = testObject.slopes[i];
-      std::cout << "Slopes : [" << vec[0] << " , " << vec[vec.size() - 1] << "]" \
-                << " : " << vec.size() << std::endl;
-      auto& vec2 = testObject.intercepts[i];
-      std::cout << "Intercepts [" << vec2[0] << " , " << vec2[vec2.size() - 1] << "]" \
-                << " : " << vec2.size() << std::endl;
-      auto& vec3 = testObject.theta[i];
-      std::cout << "Thetas [" << vec3[0] << " , " << vec3[vec3.size() - 1] << "]" \
-                << " : " << vec3.size() << std::endl;
-      auto& vec4 = testObject.C[i];
-      std::cout << "C [" << vec4 << "] " << std::endl;
-      auto& vec5 = testObject.fk[i];
-      std::cout << "fks [" << vec5[0] << " , " << vec5[vec5.size() - 1] << "]" \
-                << " : " << vec5.size() << std::endl;
+    for (long i = 0; i < data_size; ++i) {
+      calculateError(data[i], i);
     }
   }
 
-  // Find the appropriate index from the theta vector
-  void findFromVector(const KeyType& key) const {
+  std::pair<size_t, size_t> find(const KeyType& key) const {
     long rank = static_cast<long>(slope * key + intercept);
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
 
-    const auto& targetTheta = testObject.theta[rank];
+    const auto& thetas = testObject.thetas[rank];
+    const auto& slopes = testObject.slopes[rank];
+    const auto& intercepts = testObject.intercepts[rank];
+    const auto& addends = testObject.addends[rank];
+    const auto thetaSize = thetas.size();
 
-    for (auto element : targetTheta) {
-      std::cout << element << " ";
-    }
-    std::cout << std::endl;
+    const long lastIdx = thetaSize - 1;
+    const KeyType tmp_key = std::max(thetas[0], std::min(thetas[lastIdx], key));
 
-    auto it = std::upper_bound(targetTheta.begin(), targetTheta.end(), key);
+    long error = 0;
+    long search_result;
 
-    std::cout << *it << std::endl;
-  }
-
-  // Find the index of a given key
-  int find(const KeyType& key) const {
-    constexpr long data_length = 200000000;
-    long rank = static_cast<long>(slope * key + intercept);
-    rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
-
-    if (testObject.thetas[rank].size() < 2) {   // Null interval
-      return data_length * testObject.addends[rank][0];
+    if (thetaSize < 2) {
+      search_result = data_size * addends[0];
+      error = testObject.errors[rank][0];
     } else {
-      auto iter = std::upper_bound(testObject.thetas[rank].begin(),
-                                   testObject.thetas[rank].end(), key, 
-      [](const auto& lhs, const auto& rhs) {
-        return lhs <= rhs;
-      });
-      long idx = std::distance(testObject.thetas[rank].begin(), iter - 1);
-      idx = std::min(std::max(idx, 0L), static_cast<long>(testObject.slopes[rank].size() - 1));
-      auto& a = testObject.addends[rank][idx];
-      auto& s = testObject.slopes[rank][idx];
-      auto& i = testObject.intercepts[rank][idx];
+      auto iter = std::upper_bound(thetas.begin(), thetas.end(), key);
+      long idx = std::min(std::max(static_cast<long>(std::distance(thetas.begin(), iter) - 1), 0L), static_cast<long>(slopes.size() - 1));
+      const auto& a = addends[idx];
+      const auto& s = slopes[idx];
+      const auto& i = intercepts[idx];
 
-      if (s == 0) {
-        return static_cast<int>(data_length * a);
-      } else if (s > 0) {
-        mpf tmp_key = key > testObject.thetas[rank][testObject.thetas[rank].size() - 1] ? testObject.thetas[rank][testObject.thetas[rank].size() - 1]
-                    : (key < testObject.thetas[rank][0] ? testObject.thetas[rank][0] : key);
-        return static_cast<int>(data_length * (a + std::exp(s * tmp_key + i)));
-      } else {
-        mpf tmp_key = key > testObject.thetas[rank][testObject.thetas[rank].size() - 1] ? testObject.thetas[rank][testObject.thetas[rank].size() - 1]
-                    : (key < testObject.thetas[rank][0] ? testObject.thetas[rank][0] : key);
-        return static_cast<int>(data_length * (a - std::exp(s * tmp_key + i)));
-      }
+      search_result = static_cast<int>(data_size * (a + ((s > 0) - (s < 0)) * exp(s * tmp_key + i)));
+      error = testObject.errors[rank][idx];
     }
-    
+
+    long lhs = std::max(search_result - error, 0L);
+    long rhs = std::min(data_size, search_result + error);
+    return std::make_pair(static_cast<size_t>(lhs), static_cast<size_t>(rhs));
   }
 
   /*
