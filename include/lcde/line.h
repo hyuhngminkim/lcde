@@ -37,7 +37,7 @@ void line_lcd(LCD& lcd, VectorT<mpf>& x, const VectorT<int>& w,
   auto nnls_len = nnls.cols();
   mpf nnls_alpha = nnls(0);
   VectorT<mpf> nnls_pi = nnls.tail(nnls_len - 1);
-
+  mpf prev_ll = lcd.ll;
   while (true) {
     VectorT<mpf> npa = nnls_pi * alpha;
     VectorT<mpf> lpa = (1 - alpha) * lcd.pi;
@@ -48,7 +48,13 @@ void line_lcd(LCD& lcd, VectorT<mpf>& x, const VectorT<int>& w,
                         lcd.upper, 
                         lcd.theta, 
                         qwerty);
+    // ERROR
+    if (!std::isfinite(temp_lcd.C)) return;
     loglik(temp_lcd, x, w);
+    if (prev_ll >= temp_lcd.ll) {
+      lcd = temp_lcd;
+      return;
+    }
     if (temp_lcd.ll >= ll0 + alpha * delta) {
       lcd = temp_lcd;
       return;
@@ -58,6 +64,7 @@ void line_lcd(LCD& lcd, VectorT<mpf>& x, const VectorT<int>& w,
       return;
     }
     alpha *= 0.5;
+    prev_ll = temp_lcd.ll;
   }
 }
 

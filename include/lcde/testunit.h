@@ -13,7 +13,7 @@
 #include <iterator>
 #include <cmath>
 #include <Eigen/Eigenvalues>
-#include <sciplot/sciplot.hpp>
+// #include <sciplot/sciplot.hpp>
 
 #include "utils.h"
 #include "lcd.h"
@@ -26,7 +26,7 @@
 
 namespace lcde {
 
-using namespace sciplot;
+// using namespace sciplot;
 
 // The purpose of class TestUnit is twofold:
 // 1. Serve as a wrapper class for the builder such that we can plot the cdf of
@@ -84,6 +84,17 @@ class TestUnit {
     mpf theta;
     mpf addend;
     long error;
+
+    void printKnotObject() {
+      std::cout << "\n\033[1;91;47m Printing contents of knotObject \033[m\n";
+      std::cout << std::setprecision(9);
+      std::cout << "\033[1;31mSLOPE   \033[0m" << slope << std::endl;
+      std::cout << "\033[1;31mINTER   \033[0m" << intercept << std::endl;
+      std::cout << "\033[1;31mTHETA   \033[0m" << theta << std::endl;
+      std::cout << "\033[1;31mADDEND   \033[0m" << addend << std::endl;
+      std::cout << "\033[1;31mERROR   \033[0m" << error << std::endl;
+      std::cout << "\n\033[1;91;47m                                                  \033[m\n\n";
+    }
   };
 
   // Struct cdfPoint is used to reduce the memory consumption.
@@ -132,7 +143,7 @@ class TestUnit {
         knotObject ko;
         mpf addend;
         mpf newIntercept;
-         if (t_slope[i] != 0) {
+        if (t_slope[i] != 0) {
           addend = (t_base + t_ratio * (t_cpk[i] - (t_fk[i] / t_slope[i])));
           mpf t_ln;
           if (t_slope[i] < 0)  {
@@ -149,7 +160,7 @@ class TestUnit {
           // We therefore store the value multiplied to x in intercept not slope
           addend = t_base + t_ratio * (t_cpk[i] - (std::exp(t_intercept[i]) * t_theta[i]) / t_C);
           newIntercept = (t_ratio * std::exp(t_intercept[i])) / t_C;
-        }
+        } 
         ko.slope = t_slope[i];
         ko.intercept = newIntercept;
         ko.theta = t_theta[i];
@@ -261,7 +272,8 @@ class TestUnit {
     int nx = x.cols();
 
     if (nx <= 2) {
-      std::cerr << "Not enough elements. Aborting...\n";
+      testObject.append();
+      // std::cerr << "Not enough elements. Aborting...\n";
       return;
     }
 
@@ -281,12 +293,8 @@ class TestUnit {
 
     // main loop
     for (int i = 0; i < max_iter; ++i) {
-      if (lcd_.ll <= ll_old + tol) {
-        break;
-      }
-      // std::cout << "Loop\n";
+      if (lcd_.ll <= ll_old + tol) break;
       ll_old = lcd_.ll;
-
       VectorT<mpf> g_theta = maxima_gradient(lcd_, x, w, xx);
 
       if (g_theta.cols() >= 1) {
@@ -334,13 +342,14 @@ class TestUnit {
       // increasing order.
       mpf lower_bound = es.eigenvalues()(nk - 1) * lambda;
       for (auto i = 0; i < nk; ++i) {
-        if (es.eigenvalues()(i) >= lower_bound) {
+        auto tmp_ev = std::abs(es.eigenvalues()(i));
+        if (tmp_ev != 0 && tmp_ev >= lower_bound) {
           R_idx.push_back(i);
-          v2.push_back(sqrt(es.eigenvalues()(i)));
+          v2.push_back(sqrt(tmp_ev));
         }
       }
 
-      int kr = v2.size();
+      size_t kr = v2.size();
       DynamicMatrixT<mpf> first_kr_transposed = 
                 es.eigenvectors()(Eigen::placeholders::all, Eigen::seqN(0, kr))
                   .transpose();
@@ -351,6 +360,8 @@ class TestUnit {
 
       VectorT<double> nnls = pnnls(R.cast<double>(), b.cast<double>(), 1);
       nnls(0) = -nnls(0);
+
+      if (vectorIsInvalid(nnls)) break;
 
       // perform line search
       line_lcd(lcd_, x, w, xx, nnls, ll_old);
@@ -405,16 +416,19 @@ class TestUnit {
     // Train each subdata 
     for (long model_idx = 0; model_idx < fanout; ++model_idx) {
       std::vector<point>& current_training_data = training_data[model_idx];
-
+      size_t current_training_data_size = current_training_data.size();
       // The case for when the current_training_data.size() < 0 is a 
       // safety measure for when a slot of training_data has no element.
       // Bring the largest element of the previous training_data that has at least
       // a single element. If the first training_data slot has no element, insert
       // 0 as its element.
       if (model_idx == 0) {                      // First model
-        if (current_training_data.size() < min_size) {
+        if (current_training_data_size < min_size) {
           current_training_data.push_back(point(0, 0));
           testObject.append();
+          if (current_training_data_size != 0) {
+            current_base += current_training_data[current_training_data_size - 1].y;
+          }
         } else {
           max = current_training_data.back();
 
@@ -423,7 +437,7 @@ class TestUnit {
           current_base += current_ratio;
         }
       } else if (model_idx == fanout - 1) {      // Last model
-        if (current_training_data.size() < min_size) {
+        if (current_training_data_size < min_size) {
           testObject.append();
         } else {
           min = training_data[model_idx - 1].back();
@@ -432,15 +446,18 @@ class TestUnit {
           buildSingle(current_training_data);
         }
       } else {                                    // Intermediate models
-        if (current_training_data.size() < min_size) {
+        if (current_training_data_size == 0) {
           current_training_data.push_back(training_data[model_idx - 1].back());
           testObject.append();
         } else {
           min = training_data[model_idx - 1].back();
           max = current_training_data.back();
-
           current_ratio = max.y - min.y;
-          buildSingle(current_training_data);
+          if (current_training_data_size < min_size) {
+            testObject.append();
+          } else {
+            buildSingle(current_training_data);
+          }
           current_base += current_ratio;
         }
       }
@@ -453,6 +470,7 @@ class TestUnit {
 
   void calculateError(const KeyType& key, const long& ground_truth) {
     long rank = static_cast<long>(slope * key + intercept);
+    // long rank = static_cast<long>(std::fma(slope, key, intercept));
     rank = std::max(0L, std::min(static_cast<long>(fanout - 1), rank));
 
     std::vector<knotObject>& knots = testObject.knots[rank];
@@ -465,7 +483,6 @@ class TestUnit {
       search_result = data_size * knots[0].addend;
       error = std::abs(search_result - ground_truth);
       if (error > knots[0].error) knots[0].error = error;
-      return;
     } else {
       auto iter = std::upper_bound(knots.begin(), knots.end(), key, 
       [](const KeyType& k, const knotObject& ko) {
@@ -478,11 +495,9 @@ class TestUnit {
       const mpf& s = ko.slope;
       const mpf& i = ko.intercept;
       long& e = ko.error;
-
-      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
+      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i) + (s == 0) * i * tmp_key));
       error = std::abs(search_result - ground_truth);
       if (error > e) e = error;
-      return;
     }
   }
 
@@ -493,7 +508,7 @@ class TestUnit {
     const std::vector<knotObject>& knots = testObject.knots[rank];
 
     long error = 0;
-    long search_result;
+    long search_result = 0;
     const long lastIdx = knots.size() - 1;
 
     if (lastIdx == 0) {
@@ -512,7 +527,7 @@ class TestUnit {
       const mpf& i = ko.intercept;
       error = ko.error;
 
-      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i)));
+      search_result = static_cast<long>(data_size * (a + ((s > 0) - (s < 0)) * std::exp(s * tmp_key + i) + (s == 0) * i * tmp_key));
     }
 
     return std::make_pair(static_cast<size_t>(std::max(search_result - error, 0L)),
@@ -528,7 +543,6 @@ class TestUnit {
   void printJSON(const std::string& dataset) {
     testObject.printJSON(dataset);
   }
-};
 
 }
 

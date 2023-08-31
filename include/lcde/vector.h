@@ -12,7 +12,8 @@
 namespace lcde {
 
 // using mpf = boost::multiprecision::mpf_float_50;
-using mpf = long double;
+// using mpf = long double;
+using mpf = double;
 
 // Basic typedefs. 
 // Eigen Matrix and Vector types with unspecified type names. 

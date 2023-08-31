@@ -713,6 +713,13 @@ T exp(T x) {
   return ExpRecursion<T, 30, 0>::evaluate(x);
 }
 
+bool inline vectorIsInvalid(const VectorT<mpf>& vec) {
+  for (auto& el : vec) {
+    if (!std::isfinite(el)) return true;
+  }
+  return false;
+}
+
 }         // namespace lcde
 
 #endif    // LCDE_UTILS_H_
