@@ -543,6 +543,8 @@ class TestUnit {
   void printJSON(const std::string& dataset) {
     testObject.printJSON(dataset);
   }
+  
+};
 
 }
 
