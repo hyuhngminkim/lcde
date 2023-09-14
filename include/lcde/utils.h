@@ -709,7 +709,7 @@ struct ExpRecursion<T, degree, degree> {
 };
 
 template <typename T>
-T exp(T x) {
+T expApprox(T x) {
   return ExpRecursion<T, 30, 0>::evaluate(x);
 }
 
