@@ -3,8 +3,8 @@
 echo "Plotting datasets..."
 do_save=false;
 save_type="pdf";
-sampling_rate=0.01;
-fanout=20000;
+sampling_rate=1;
+fanout=100000;
 while getopts t:r:f:s arg; do
   case $arg in
     s) do_save=true;;
