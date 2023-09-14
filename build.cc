@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 
-#include "include/lcde/testunit.h"
+#include "include/lcde/plot.h"
 #include "include/lcde/cxxopts.hpp"
 #include "test/rdata.h"
 
