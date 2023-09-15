@@ -715,7 +715,7 @@ T expApprox(T x) {
 
 bool inline vectorIsInvalid(const VectorT<mpf>& vec) {
   for (auto& el : vec) {
-    if (!std::isfinite(el)) return true;
+    if (!std::isfinite(el) || el == 0) return true;
   }
   return false;
 }
